@@ -16,15 +16,21 @@ class DbService {
   static Database? _database;
   static Completer<Database?>? _initCompleter;
 
-  Future<Database?> get database async {
-    if (_database != null) return _database;
-    if (kIsWeb) return null; // Web fallback
+  Future<Database?> get database {
+    if (_database != null) return Future.value(_database);
+    if (kIsWeb) return Future.value(null);
     if (_initCompleter != null) return _initCompleter!.future;
+    
     _initCompleter = Completer<Database?>();
-    final db = await _initDatabase();
-    _database = db;
-    _initCompleter!.complete(db);
-    return db;
+    _initDatabase().then((db) {
+      _database = db;
+      _initCompleter!.complete(db);
+    }).catchError((e) {
+      _initCompleter!.completeError(e);
+      _initCompleter = null;
+    });
+    
+    return _initCompleter!.future;
   }
 
   Future<Database?> _initDatabase() async {

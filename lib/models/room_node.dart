@@ -83,8 +83,9 @@ class RoomNode {
     y: (json['y'] as num).toDouble(),
     doorSide: json['doorSide'] as String? ?? 'straight',
     studentCapacity: (json['studentCapacity'] as num?)?.toInt() ?? 40,
-    isAccessible: json['isAccessible'] == null ? true
-        : (json['isAccessible'] is bool ? json['isAccessible'] as bool : json['isAccessible'] == 1),
+    isAccessible: json['isAccessible'] == null 
+        ? true 
+        : (json['isAccessible'] == true || json['isAccessible'] == 1 || json['isAccessible'] == '1' || json['isAccessible'] == 'true'),
     facultyMembers: (json['facultyMembers'] as List<dynamic>?)
             ?.map((f) => FacultyMember.fromJson(f as Map<String, dynamic>))
             .toList() ??

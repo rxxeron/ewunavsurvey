@@ -14,78 +14,10 @@ import 'pdr_engine.dart';
 import 'compass_fusion_service.dart';
 import 'wifi_scanner_service.dart';
 import 'geospatial_service.dart';
+import '../models/survey_corridor_point.dart';
+import '../models/area_loop_candidate.dart';
 
-class SurveyCorridorPoint {
-  final double x;
-  final double y;
-  final String floor;
-  final double headingDeg;
-
-  SurveyCorridorPoint({
-    required this.x,
-    required this.y,
-    required this.floor,
-    required this.headingDeg,
-  });
-}
-
-
-class AreaLoopCandidate {
-  final List<ZonePoint> points;
-  final double areaSqMeters;
-  final int startIndex;
-  final int endIndex;
-
-  AreaLoopCandidate({
-    required this.points,
-    required this.areaSqMeters,
-    required this.startIndex,
-    required this.endIndex,
-  });
-}
-
-class BuildingSurveyData {
-  final String name;
-  final double lat;
-  final double lng;
-  final List<String> floors;
-  String currentFloor;
-  final double originX;
-  final double originY;
-  double currentX;
-  double currentY;
-  double currentHeadingDeg;
-  final Map<String, List<SurveyCorridorPoint>> floorTrackPoints;
-  final List<RoomNode> rooms;
-  final List<CorridorEdge> edges;
-  final List<WiFiFingerprint> fingerprints;
-  final List<StepLogRecord> stepLogs;
-  final List<AreaZone> zones;
-  final List<Opening> openings;
-  final List<Amenity> amenities;
-
-  BuildingSurveyData({
-    required this.name,
-    required this.lat,
-    required this.lng,
-    required List<String> floors,
-    String? currentFloor,
-    this.originX = 400.0,
-    this.originY = 400.0,
-    this.currentHeadingDeg = 0.0,
-  })  : floors = List<String>.from(floors),
-        currentFloor = currentFloor ?? (floors.isNotEmpty ? floors.first : 'Ground Floor'),
-        currentX = originX,
-        currentY = originY,
-        floorTrackPoints = {for (final f in floors) f: []},
-        rooms = [],
-        edges = [],
-        fingerprints = [],
-        stepLogs = [],
-        zones = [],
-        openings = [],
-        amenities = [];
-}
+import '../models/building_survey_data.dart';
 
 class SlamSurveyorEngine extends ChangeNotifier {
   SurveyConfig config = const SurveyConfig();

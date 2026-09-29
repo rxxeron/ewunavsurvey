@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import '../models/survey_corridor_point.dart';
 import 'slam_surveyor_engine.dart';
 
 class LoopClosureOptimizer {
