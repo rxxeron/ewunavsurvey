@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/foundation.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'services/pdr_engine.dart';
 import 'services/compass_fusion_service.dart';
 import 'services/wifi_scanner_service.dart';
@@ -7,8 +9,22 @@ import 'services/slam_surveyor_engine.dart';
 import 'services/db_service.dart';
 import 'views/surveyor/surveyor_screen.dart';
 
+Future<void> _requestPermissions() async {
+  if (kIsWeb) return;
+  try {
+    await [
+      Permission.locationWhenInUse,
+      Permission.activityRecognition,
+      Permission.nearbyWifiDevices,
+    ].request();
+  } catch (e) {
+    debugPrint('Permission request error: $e');
+  }
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await _requestPermissions();
 
   final pdrEngine = PdrEngine(enableHardwareSensors: true);
   final compassFusion = CompassFusionService(enableHardwareSensors: true);

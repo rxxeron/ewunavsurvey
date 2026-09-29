@@ -28,7 +28,10 @@ class LoopClosureOptimizer {
     }
 
     final int n = points.length;
-    // Linearly distribute drift error across all path vertices
+    // Snapshot of original coordinates for nearest-vertex projection
+    final List<math.Point<double>> orig = points.map((p) => math.Point(p.x, p.y)).toList();
+
+    // 1. Linearly distribute drift error across all path vertices
     for (int i = 0; i < n; i++) {
       final double weight = (i / (n - 1));
       final double adjustedX = points[i].x + (deltaX * weight);
@@ -40,6 +43,46 @@ class LoopClosureOptimizer {
         floor: points[i].floor,
         headingDeg: points[i].headingDeg,
       );
+    }
+
+    // 2. Adjust step log coordinates on this floor to match corrected trajectory
+    final stepLogs = engine.stepLogs;
+    for (int s = 0; s < stepLogs.length; s++) {
+      final step = stepLogs[s];
+      if (step.floor == engine.currentFloor) {
+        int bestIdx = 0;
+        double bestDist = double.infinity;
+        for (int i = 0; i < orig.length; i++) {
+          final d = orig[i].distanceTo(math.Point(step.x, step.y));
+          if (d < bestDist) {
+            bestDist = d;
+            bestIdx = i;
+          }
+        }
+        final double weight = bestIdx / (n - 1);
+        stepLogs[s] = step.copyWith(
+          x: step.x + (deltaX * weight),
+          y: step.y + (deltaY * weight),
+        );
+      }
+    }
+
+    // 3. Adjust room vertex coordinates on this floor
+    for (final room in engine.rooms) {
+      if (room.floor == engine.currentFloor) {
+        int bestIdx = 0;
+        double bestDist = double.infinity;
+        for (int i = 0; i < orig.length; i++) {
+          final d = orig[i].distanceTo(math.Point(room.x, room.y));
+          if (d < bestDist) {
+            bestDist = d;
+            bestIdx = i;
+          }
+        }
+        final double weight = bestIdx / (n - 1);
+        room.x += (deltaX * weight);
+        room.y += (deltaY * weight);
+      }
     }
 
     // Set current surveyor position strictly to target coordinate

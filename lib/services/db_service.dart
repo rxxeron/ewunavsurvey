@@ -7,6 +7,7 @@ import '../models/room_node.dart';
 import '../models/corridor_edge.dart';
 import '../models/wifi_fingerprint.dart';
 import '../models/step_log_record.dart';
+import '../models/faculty_member.dart';
 
 class DbService {
   static Database? _database;
@@ -233,11 +234,71 @@ class DbService {
     await db.delete('step_logs');
   }
 
+  Future<void> deleteFloorData(String floor) async {
+    final db = await database;
+    if (db == null) return;
+    
+    final roomRows = await db.query('rooms', columns: ['id'], where: 'floor = ?', whereArgs: [floor]);
+    final roomIds = roomRows.map((r) => r['id'] as String).toList();
+    
+    await db.delete('rooms', where: 'floor = ?', whereArgs: [floor]);
+    for (final id in roomIds) {
+      await db.delete('edges', where: 'fromId = ? OR toId = ?', whereArgs: [id, id]);
+    }
+    await db.delete('wifi_fingerprints', where: 'floor = ?', whereArgs: [floor]);
+    await db.delete('step_logs', where: 'floor = ?', whereArgs: [floor]);
+  }
+
+  Future<List<RoomNode>> getAllRooms() async {
+    final db = await database;
+    if (db == null) return [];
+    final rows = await db.query('rooms');
+    return rows.map<RoomNode>((r) {
+      final facultyRaw = r['facultyMembers'] as String?;
+      List<FacultyMember> faculty = [];
+      if (facultyRaw != null && facultyRaw.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(facultyRaw) as List<dynamic>;
+          faculty = decoded.map((f) => FacultyMember.fromJson(f as Map<String, dynamic>)).toList();
+        } catch (_) {}
+      }
+      return RoomNode(
+        id: r['id'] as String,
+        roomNumber: r['roomNumber'] as String?,
+        name: r['name'] as String,
+        floor: r['floor'] as String,
+        category: RoomCategory.values.firstWhere(
+          (c) => c.name == (r['category'] as String?),
+          orElse: () => RoomCategory.classroom,
+        ),
+        department: r['department'] as String? ?? 'General',
+        x: (r['x'] as num).toDouble(),
+        y: (r['y'] as num).toDouble(),
+        doorSide: r['doorSide'] as String? ?? 'left',
+        studentCapacity: (r['studentCapacity'] as num?)?.toInt() ?? 40,
+        isAccessible: (r['isAccessible'] as int?) == 1,
+        facultyMembers: faculty,
+        notes: r['notes'] as String?,
+        latitude: (r['latitude'] as num?)?.toDouble(),
+        longitude: (r['longitude'] as num?)?.toDouble(),
+        altitudeMeters: (r['altitudeMeters'] as num?)?.toDouble(),
+        floorHeightMeters: (r['floorHeightMeters'] as num?)?.toDouble(),
+      );
+    }).toList();
+  }
+
+  Future<List<CorridorEdge>> getAllEdges() async {
+    final db = await database;
+    if (db == null) return [];
+    final rows = await db.query('edges');
+    return rows.map<CorridorEdge>((r) => CorridorEdge.fromJson(r)).toList();
+  }
+
   Future<List<StepLogRecord>> getAllStepLogs() async {
     final db = await database;
     if (db == null) return [];
     final rows = await db.query('step_logs', orderBy: 'stepIndex ASC');
-    return rows.map((r) {
+    return rows.map<StepLogRecord>((r) {
       final wifiRaw = r['wifiSignals'] as String?;
       List<dynamic> parsedSignals = [];
       if (wifiRaw != null && wifiRaw.isNotEmpty) {
@@ -246,8 +307,8 @@ class DbService {
         } catch (_) {}
       }
       return StepLogRecord(
-        stepIndex: r['stepIndex'] as int,
-        timestampMs: r['timestampMs'] as int,
+        stepIndex: (r['stepIndex'] as num).toInt(),
+        timestampMs: (r['timestampMs'] as num).toInt(),
         floor: r['floor'] as String,
         x: (r['x'] as num).toDouble(),
         y: (r['y'] as num).toDouble(),
@@ -272,7 +333,16 @@ class DbService {
     final db = await database;
     List<Map<String, dynamic>> fps = [];
     if (db != null) {
-      fps = await db.query('wifi_fingerprints');
+      final rawFps = await db.query('wifi_fingerprints');
+      fps = rawFps.map((row) {
+        final m = Map<String, dynamic>.from(row);
+        if (m['accessPoints'] is String) {
+          try {
+            m['accessPoints'] = jsonDecode(m['accessPoints'] as String);
+          } catch (_) {}
+        }
+        return m;
+      }).toList();
     }
 
     final rawPayload = {

@@ -370,6 +370,22 @@ class _SurveyorPainter extends CustomPainter {
       } else if (room.category == RoomCategory.restroom) {
         pinColor = const Color(0xFFE57373); // restroom pink
         icon = '🚻';
+      } else if (room.category == RoomCategory.deadEnd) {
+        pinColor = const Color(0xFFEF5350); // dead-end wall red
+        icon = '🚫';
+      }
+
+      // Draw Architectural Wall Cap for Dead Ends
+      if (room.category == RoomCategory.deadEnd) {
+        final wallCapPaint = Paint()
+          ..color = const Color(0xFFEF5350)
+          ..strokeWidth = 6.0
+          ..strokeCap = StrokeCap.square;
+        canvas.drawLine(
+          Offset(room.x - 18, room.y),
+          Offset(room.x + 18, room.y),
+          wallCapPaint,
+        );
       }
 
       // Draw Door Pin

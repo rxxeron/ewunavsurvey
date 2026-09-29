@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:wifi_scan/wifi_scan.dart';
 import '../models/wifi_fingerprint.dart';
@@ -10,7 +9,7 @@ class WiFiScannerService {
   final _fingerprintController = StreamController<WiFiFingerprint>.broadcast();
   Stream<WiFiFingerprint> get fingerprintStream => _fingerprintController.stream;
 
-  bool get isHardwareSupported => !kIsWeb && Platform.isAndroid;
+  bool get isHardwareSupported => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
   bool get canScan => _canScan;
 
   WiFiScannerService() {
@@ -18,7 +17,7 @@ class WiFiScannerService {
   }
 
   Future<void> _initScanner() async {
-    if (kIsWeb || !Platform.isAndroid) {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
       _canScan = false;
       return;
     }
@@ -40,7 +39,7 @@ class WiFiScannerService {
     final int now = DateTime.now().millisecondsSinceEpoch;
     final List<EwuWiFiSignal> detectedAPs = [];
 
-    if (_canScan && !kIsWeb && Platform.isAndroid) {
+    if (_canScan && !kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
       try {
         final startResult = await WiFiScan.instance.startScan();
         if (startResult) {

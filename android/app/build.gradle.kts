@@ -42,7 +42,11 @@ android {
 
     buildTypes {
         release {
-            signingConfig = if (keystorePropertiesFile.exists()) {
+            val hasValidKeystore = keystorePropertiesFile.exists() &&
+                !keystoreProperties.getProperty("storeFile").isNullOrBlank() &&
+                !keystoreProperties.getProperty("keyAlias").isNullOrBlank()
+
+            signingConfig = if (hasValidKeystore) {
                 signingConfigs.getByName("release")
             } else {
                 signingConfigs.getByName("debug")

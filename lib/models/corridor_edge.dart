@@ -22,10 +22,12 @@ class CorridorEdge {
   };
 
   factory CorridorEdge.fromJson(Map<String, dynamic> json) => CorridorEdge(
-    fromId: json['from'] as String,
-    toId: json['to'] as String,
+    fromId: (json['from'] ?? json['fromId']) as String,
+    toId: (json['to'] ?? json['toId']) as String,
     distanceMeters: (json['distanceMeters'] as num).toDouble(),
     type: json['type'] as String? ?? 'corridor',
-    isAccessible: json['isAccessible'] as bool? ?? true,
+    isAccessible: json['isAccessible'] is bool
+        ? json['isAccessible'] as bool
+        : (json['isAccessible'] == 1 || json['isAccessible'] == true),
   );
 }

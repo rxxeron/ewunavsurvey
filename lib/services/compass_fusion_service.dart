@@ -45,7 +45,7 @@ class CompassFusionService {
       final now = DateTime.now().millisecondsSinceEpoch;
       if (_lastGyroTimeMs > 0) {
         final dt = (now - _lastGyroTimeMs) / 1000.0;
-        if (dt > 0 && dt < 1.0) {
+        if (dt > 0 && dt <= 0.2) {
           processGyroscopeSample(event.z, dt);
         }
       }

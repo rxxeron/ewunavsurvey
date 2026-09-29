@@ -376,45 +376,220 @@ class _SurveyorScreenState extends State<SurveyorScreen> {
     if (!widget.engine.hasActiveBuilding) return;
 
     final commentCtrl = TextEditingController();
+    final quickChips = [
+      '🚰 Water Cooler',
+      '📋 Notice Board',
+      '🚻 Restroom Entrance',
+      '🚧 Construction Barrier',
+      '🪟 Glass Partition',
+      '🚨 Fire Extinguisher',
+    ];
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF1E2235),
+          title: const Text('💬 Add Step Comment / Field Note', style: TextStyle(color: Color(0xFF64B5F6), fontSize: 16)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: commentCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    hintText: 'e.g. Glass door to cafeteria, Water cooler on left',
+                    hintStyle: TextStyle(color: Colors.white38),
+                    filled: true,
+                    fillColor: Color(0xFF141624),
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 10),
+                const Text('Quick Field Tags:', style: TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: quickChips.map((tag) => ActionChip(
+                    backgroundColor: const Color(0xFF141624),
+                    side: const BorderSide(color: Colors.white24),
+                    label: Text(tag, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                    onPressed: () {
+                      setDialogState(() {
+                        if (commentCtrl.text.isEmpty) {
+                          commentCtrl.text = tag;
+                        } else {
+                          commentCtrl.text = '${commentCtrl.text}, $tag';
+                        }
+                      });
+                    },
+                  )).toList(),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            OutlinedButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF81C784)),
+              onPressed: () {
+                final text = commentCtrl.text.trim();
+                if (text.isNotEmpty) {
+                  widget.engine.addCommentToCurrentStep(text);
+                  if (widget.engine.stepLogs.isNotEmpty) {
+                    final last = widget.engine.stepLogs.last;
+                    widget.dbService.updateStepComment(last.stepIndex, text);
+                  }
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(backgroundColor: Color(0xFF1C442E), content: Text('Comment saved to step log!')),
+                  );
+                }
+                Navigator.pop(context);
+              },
+              child: const Text('Save Note', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openDeadEndDialog() {
+    if (!widget.engine.hasActiveBuilding) return;
+
+    final noteCtrl = TextEditingController();
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1E2235),
-        title: const Text('💬 Add Step Comment / Field Note', style: TextStyle(color: Color(0xFF64B5F6), fontSize: 16)),
-        content: TextField(
-          controller: commentCtrl,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            hintText: 'e.g. Glass door to cafeteria, Water cooler on left, Floor tile transition',
-            hintStyle: TextStyle(color: Colors.white38),
-            filled: true,
-            fillColor: Color(0xFF141624),
-            border: OutlineInputBorder(),
-          ),
-          maxLines: 3,
+        title: Row(
+          children: const [
+            Icon(Icons.block, color: Color(0xFFEF5350), size: 22),
+            SizedBox(width: 8),
+            Text('Tag Corridor Dead End', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Marks this position as a physical corridor termination / wall boundary. This prevents pathfinding routes from trying to pass through this wall and draws an architectural end cap.',
+              style: TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: noteCtrl,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                hintText: 'e.g. South Wall, Locked Fire Exit, End of Hallway A',
+                hintStyle: TextStyle(color: Colors.white38),
+                labelText: 'Optional Barrier Description',
+                labelStyle: TextStyle(color: Color(0xFF64B5F6)),
+                filled: true,
+                fillColor: Color(0xFF141624),
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
         ),
         actions: [
-          OutlinedButton(
+          TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF81C784)),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEF5350)),
             onPressed: () {
-              final text = commentCtrl.text.trim();
-              if (text.isNotEmpty) {
-                widget.engine.addCommentToCurrentStep(text);
-                if (widget.engine.stepLogs.isNotEmpty) {
-                  final last = widget.engine.stepLogs.last;
-                  widget.dbService.updateStepComment(last.stepIndex, text);
-                }
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(backgroundColor: Color(0xFF1C442E), content: Text('Comment saved to step log!')),
-                );
-              }
+              final deadEndNode = widget.engine.tagDeadEnd(note: noteCtrl.text.trim());
+              widget.dbService.saveRoom(deadEndNode);
               Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  backgroundColor: Color(0xFF491212),
+                  content: Text('Dead-end wall boundary placed! Use 🔄 U-Turn to walk back.'),
+                ),
+              );
             },
-            child: const Text('Save Note', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+            child: const Text('Place Wall Cap', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+          Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  void _openCompleteFloorDialog() {
+    if (!widget.engine.hasActiveBuilding) return;
+
+    final floor = widget.engine.currentFloor;
+    final floorRooms = widget.engine.rooms.where((r) => r.floor == floor).length;
+    final floorSteps = widget.engine.stepLogs.where((s) => s.floor == floor).length;
+    final floorMeters = (floorSteps * widget.engine.pdrEngine.strideLengthMeters);
+    final floorFingerprints = widget.engine.fingerprints.where((f) => f.floor == floor).length;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E2235),
+        title: Row(
+          children: const [
+            Icon(Icons.check_circle, color: Color(0xFF81C784), size: 24),
+            SizedBox(width: 8),
+            Text('Complete Floor Survey', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Floor: $floor (${widget.engine.currentBuilding})',
+                style: const TextStyle(color: Color(0xFF64B5F6), fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            _buildDetailRow('👣 Total Steps', '$floorSteps steps'),
+            _buildDetailRow('📏 Walked Distance', '${floorMeters.toStringAsFixed(1)} meters'),
+            _buildDetailRow('🚪 Tagged Landmarks', '$floorRooms rooms/portals'),
+            _buildDetailRow('📶 Wi-Fi Fingerprints', '$floorFingerprints scans'),
+            const Divider(color: Colors.white24, height: 16),
+            const Text(
+              'Survey status will be paused and all graph edges verified for this floor.',
+              style: TextStyle(color: Colors.white60, fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Keep Surveying', style: TextStyle(color: Colors.white60)),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF81C784)),
+            icon: const Icon(Icons.lock, size: 16, color: Colors.black),
+            label: const Text('Finalize & Export', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+            onPressed: () {
+              widget.engine.pauseRecording();
+              Navigator.pop(context);
+              _exportDatabase();
+            },
           ),
         ],
       ),
@@ -1125,6 +1300,46 @@ class _SurveyorScreenState extends State<SurveyorScreen> {
                                     ],
                                   ),
                                   const SizedBox(height: 8),
+                                   // Survey Lifecycle: Pause / Resume & Complete
+                                   Row(
+                                     children: [
+                                       Expanded(
+                                         child: ElevatedButton.icon(
+                                           style: ElevatedButton.styleFrom(
+                                             backgroundColor: widget.engine.isRecording ? const Color(0xFF143020) : const Color(0xFF33200D),
+                                             side: BorderSide(color: widget.engine.isRecording ? const Color(0xFF81C784) : const Color(0xFFFFB74D)),
+                                             padding: const EdgeInsets.symmetric(vertical: 8),
+                                           ),
+                                           icon: Icon(
+                                             widget.engine.isRecording ? Icons.pause_circle_outline : Icons.play_circle_outline,
+                                             size: 16,
+                                             color: widget.engine.isRecording ? const Color(0xFF81C784) : const Color(0xFFFFB74D),
+                                           ),
+                                           label: Text(
+                                             widget.engine.isRecording ? '🟢 Recording' : '🟠 Paused',
+                                             style: TextStyle(
+                                               color: widget.engine.isRecording ? const Color(0xFF81C784) : const Color(0xFFFFB74D),
+                                               fontSize: 11,
+                                               fontWeight: FontWeight.bold,
+                                             ),
+                                           ),
+                                           onPressed: () => setState(() => widget.engine.toggleRecording()),
+                                         ),
+                                       ),
+                                       const SizedBox(width: 8),
+                                       ElevatedButton.icon(
+                                         style: ElevatedButton.styleFrom(
+                                           backgroundColor: const Color(0xFF1E3A5F),
+                                           side: const BorderSide(color: Color(0xFF64B5F6)),
+                                           padding: const EdgeInsets.symmetric(vertical: 8),
+                                         ),
+                                         icon: const Icon(Icons.check_circle_outline, size: 16, color: Color(0xFF64B5F6)),
+                                         label: const Text('Complete', style: TextStyle(color: Color(0xFF64B5F6), fontSize: 11, fontWeight: FontWeight.bold)),
+                                         onPressed: _openCompleteFloorDialog,
+                                       ),
+                                     ],
+                                   ),
+                                   const SizedBox(height: 8),
                                   Row(
                                     children: [
                                       Expanded(
@@ -1254,15 +1469,31 @@ class _SurveyorScreenState extends State<SurveyorScreen> {
                                           style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFFBA68C8), side: const BorderSide(color: Color(0xFFBA68C8))),
                                           icon: const Icon(Icons.elevator, size: 16),
                                           label: const Text('🛗 Lift', style: TextStyle(fontSize: 12)),
-                                          onPressed: () => _openPortalModal('lift'),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-
+                                           onPressed: () => _openPortalModal('lift'),
+                                         ),
+                                       ),
+                                     ],
+                                   ),
+                                   const SizedBox(height: 8),
+                                   Row(
+                                     children: [
+                                       Expanded(
+                                         child: OutlinedButton.icon(
+                                           style: OutlinedButton.styleFrom(
+                                             foregroundColor: const Color(0xFFEF5350),
+                                             side: const BorderSide(color: Color(0xFFEF5350)),
+                                           ),
+                                           icon: const Icon(Icons.block, size: 16),
+                                           label: const Text('🚫 Dead End Wall', style: TextStyle(fontSize: 12)),
+                                           onPressed: _openDeadEndDialog,
+                                         ),
+                                       ),
+                                     ],
+                                   ),
+                                 ],
+                               ),
+                             ),
+                             const SizedBox(height: 12),
                             // Card 3: Step Field Notes & Comments
                             _buildWorkbenchCard(
                               '💬 Field Notes & Annotations',
@@ -1388,6 +1619,10 @@ class _SurveyorScreenState extends State<SurveyorScreen> {
           // Mobile Tactile Thumb Action Bar (Only shown on mobile)
           if (!isDesktop)
             ThumbActionBar(
+              isRecording: widget.engine.isRecording,
+              onToggleRecording: () => setState(() => widget.engine.toggleRecording()),
+              onCompleteFloor: _openCompleteFloorDialog,
+              onMarkDeadEnd: _openDeadEndDialog,
               onDoorLeft: () => _openRoomModal('left'),
               onDoorRight: () => _openRoomModal('right'),
               onTurnLeft: () => widget.engine.turn(-90),

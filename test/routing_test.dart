@@ -52,7 +52,10 @@ void main() {
     expect(result, isNotNull);
     expect(result!.pathNodes.length, 4);
     expect(result.pathNodes.first.id, 'gf_gate');
-    expect(result.pathNodes.last.id, 'f2_room_240');
-    expect(result.totalDistanceMeters, greaterThan(0));
+    expect(result.totalDistanceMeters, closeTo(43.4, 0.01));
+    expect(result.segments.length, 3);
+    expect(result.segments[0].distanceMeters, 20.0);
+    expect(result.segments[1].distanceMeters, 8.4);
+    expect(result.segments[2].distanceMeters, 15.0);
   });
 }

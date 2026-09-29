@@ -130,7 +130,14 @@ class RoutingEngine {
     for (int i = 0; i < pathNodes.length - 1; i++) {
       final from = pathNodes[i];
       final to = pathNodes[i + 1];
-      final dist = (from.floor != to.floor) ? 4.2 : 5.0; // estimate if edge metric
+      
+      double dist = (from.floor != to.floor) ? 4.2 : 5.0;
+      final matching = edges.where((e) =>
+          (e.fromId == from.id && e.toId == to.id) ||
+          (e.fromId == to.id && e.toId == from.id));
+      if (matching.isNotEmpty) {
+        dist = matching.first.distanceMeters;
+      }
       totalDist += dist;
 
       String instruction = 'Walk straight toward ${to.name}';

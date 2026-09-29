@@ -86,10 +86,28 @@ class SlamSurveyorEngine extends ChangeNotifier {
   }) : geospatialService = geospatialService ?? GeospatialService() {
     // Listen to physical footsteps from PDR
     pdrEngine.stepStream.listen((event) {
-      if (hasActiveBuilding) {
+      if (hasActiveBuilding && _isRecording) {
         _advanceOnFootstep(event.strideLengthMeters);
       }
     });
+  }
+
+  bool _isRecording = true;
+  bool get isRecording => _isRecording;
+
+  void pauseRecording() {
+    _isRecording = false;
+    notifyListeners();
+  }
+
+  void resumeRecording() {
+    _isRecording = true;
+    notifyListeners();
+  }
+
+  void toggleRecording() {
+    _isRecording = !_isRecording;
+    notifyListeners();
   }
 
   bool get hasActiveBuilding =>
@@ -237,11 +255,18 @@ class SlamSurveyorEngine extends ChangeNotifier {
 
     survey.floors.remove(floorName);
     survey.floorTrackPoints.remove(floorName);
+    final removedRoomIds = survey.rooms.where((r) => r.floor == floorName).map((r) => r.id).toSet();
     survey.rooms.removeWhere((r) => r.floor == floorName);
-    // Remove edges connected to removed rooms
-    final remainingRoomIds = survey.rooms.map((r) => r.id).toSet();
+
+    // Remove edges connected to removed rooms or floor corridor nodes
+    final floorPrefix = 'node_${floorName}_';
     survey.edges.removeWhere((e) =>
-        (e.type == 'door' && (!remainingRoomIds.contains(e.fromId) && !remainingRoomIds.contains(e.toId))));
+        removedRoomIds.contains(e.fromId) ||
+        removedRoomIds.contains(e.toId) ||
+        e.fromId.startsWith(floorPrefix) ||
+        e.toId.startsWith(floorPrefix));
+
+    survey.fingerprints.removeWhere((fp) => fp.floor == floorName);
     survey.stepLogs.removeWhere((s) => s.floor == floorName);
 
     if (survey.currentFloor == floorName) {
@@ -595,6 +620,62 @@ class SlamSurveyorEngine extends ChangeNotifier {
     return portalNode;
   }
 
+  /// Tag a corridor dead end or wall boundary at current position
+  RoomNode tagDeadEnd({String? note}) {
+    if (!hasActiveBuilding) {
+      throw StateError('Cannot tag dead end without an active building survey');
+    }
+    final survey = activeSurvey!;
+
+    final geo = geospatialService.calculatePosition(
+      baseLat: survey.lat,
+      baseLng: survey.lng,
+      canvasX: survey.currentX,
+      canvasY: survey.currentY,
+      originCanvasX: survey.originX,
+      originCanvasY: survey.originY,
+      pixelsPerMeter: pixelsPerMeter,
+      floorName: survey.currentFloor,
+    );
+
+    final deadEndName = (note != null && note.trim().isNotEmpty)
+        ? 'Dead End (${note.trim()})'
+        : 'Dead End Wall';
+    final deadEndId = 'dead_end_${survey.currentFloor.replaceAll(' ', '_')}_${survey.currentX.round()}_${survey.currentY.round()}';
+
+    final deadEndNode = RoomNode(
+      id: deadEndId,
+      name: deadEndName,
+      roomNumber: 'DEAD-END',
+      floor: survey.currentFloor,
+      category: RoomCategory.deadEnd,
+      x: survey.currentX,
+      y: survey.currentY,
+      notes: note,
+      latitude: geo.latitude,
+      longitude: geo.longitude,
+      altitudeMeters: geo.altitudeMeters,
+      floorHeightMeters: geo.floorHeightMeters,
+    );
+
+    survey.rooms.add(deadEndNode);
+
+    // Link dead end to the current corridor centerline
+    final String hallNodeId = 'node_${survey.currentFloor}_${survey.currentX.round()}_${survey.currentY.round()}';
+    survey.edges.add(CorridorEdge(
+      fromId: hallNodeId,
+      toId: deadEndId,
+      distanceMeters: 0.5,
+      type: 'corridor',
+    ));
+
+    // Automatically add note to the step log
+    addCommentToCurrentStep('🚫 $deadEndName');
+
+    notifyListeners();
+    return deadEndNode;
+  }
+
   /// Enter a Vertical Portal (Staircase or Elevator) with 3D elevation capture
   void enterVerticalPortal({
     required String name,
@@ -720,12 +801,18 @@ class SlamSurveyorEngine extends ChangeNotifier {
       survey.edges.removeWhere((e) => e.fromId == removed.id || e.toId == removed.id);
     } else if (survey.floorTrackPoints[survey.currentFloor] != null &&
         survey.floorTrackPoints[survey.currentFloor]!.length > 1) {
-      survey.floorTrackPoints[survey.currentFloor]!.removeLast();
+      final lastPoint = survey.floorTrackPoints[survey.currentFloor]!.removeLast();
       final prev = survey.floorTrackPoints[survey.currentFloor]!.last;
       survey.currentX = prev.x;
       survey.currentY = prev.y;
       survey.currentHeadingDeg = prev.headingDeg;
-      if (survey.edges.isNotEmpty) survey.edges.removeLast();
+
+      final String prevId = 'node_${survey.currentFloor}_${prev.x.round()}_${prev.y.round()}';
+      final String lastId = 'node_${survey.currentFloor}_${lastPoint.x.round()}_${lastPoint.y.round()}';
+      survey.edges.removeWhere((e) =>
+          (e.fromId == prevId && e.toId == lastId) ||
+          (e.fromId == lastId && e.toId == prevId));
+
       if (survey.stepLogs.isNotEmpty) {
         survey.stepLogs.removeLast();
         pdrEngine.decrementStep();

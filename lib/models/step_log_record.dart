@@ -33,6 +33,26 @@ class StepLogRecord {
     List<EwuWiFiSignal>? wifiSignals,
   }) : wifiSignals = wifiSignals ?? [];
 
+  StepLogRecord copyWith({
+    double? x,
+    double? y,
+  }) => StepLogRecord(
+    stepIndex: stepIndex,
+    timestampMs: timestampMs,
+    floor: floor,
+    x: x ?? this.x,
+    y: y ?? this.y,
+    headingDeg: headingDeg,
+    strideMeters: strideMeters,
+    comment: comment,
+    latitude: latitude,
+    longitude: longitude,
+    altitudeMeters: altitudeMeters,
+    floorHeightMeters: floorHeightMeters,
+    gpsAccuracyMeters: gpsAccuracyMeters,
+    wifiSignals: wifiSignals,
+  );
+
   Map<String, dynamic> toJson() => {
     'stepIndex': stepIndex,
     'timestampMs': timestampMs,
@@ -51,8 +71,8 @@ class StepLogRecord {
   };
 
   factory StepLogRecord.fromJson(Map<String, dynamic> json) => StepLogRecord(
-    stepIndex: json['stepIndex'] as int,
-    timestampMs: json['timestampMs'] as int,
+    stepIndex: (json['stepIndex'] as num).toInt(),
+    timestampMs: (json['timestampMs'] as num).toInt(),
     floor: json['floor'] as String,
     x: (json['x'] as num).toDouble(),
     y: (json['y'] as num).toDouble(),

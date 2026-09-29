@@ -11,6 +11,7 @@ enum RoomCategory {
   amenity,
   entrance,
   corridorJunction,
+  deadEnd,
 }
 
 class RoomNode {
