@@ -28,6 +28,7 @@ class RoomNode {
   double? longitude;
   double? altitudeMeters;
   double? floorHeightMeters;
+  String? photoPath;
 
   RoomNode({
     required this.id,
@@ -47,6 +48,7 @@ class RoomNode {
     this.longitude,
     this.altitudeMeters,
     this.floorHeightMeters,
+    this.photoPath,
   }) : facultyMembers = facultyMembers ?? [];
 
   Map<String, dynamic> toJson() => {
@@ -67,6 +69,7 @@ class RoomNode {
     'longitude': longitude,
     'altitudeMeters': altitudeMeters,
     'floorHeightMeters': floorHeightMeters,
+    'photoPath': photoPath,
   };
 
   factory RoomNode.fromJson(Map<String, dynamic> json) => RoomNode(

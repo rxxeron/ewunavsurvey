@@ -1,6 +1,7 @@
 import '../models/room_node.dart';
 import '../models/corridor_edge.dart';
 import '../constants/ada_constants.dart';
+import '../models/opening.dart';
 
 enum VerticalPreference {
   fastest,
@@ -40,8 +41,9 @@ class RoutingResult {
 class RoutingEngine {
   final List<RoomNode> nodes;
   final List<CorridorEdge> edges;
+  final List<Opening> openings;
 
-  RoutingEngine({required this.nodes, required this.edges});
+  RoutingEngine({required this.nodes, required this.edges, this.openings = const []});
 
   RoutingResult? calculateRoute({
     required String startNodeId,
@@ -68,6 +70,18 @@ class RoutingEngine {
         unvisited.add(e.toId);
       }
     }
+    
+    // Register nodes from openings
+    for (var o in openings) {
+      if (!distances.containsKey(o.unitIdA)) {
+        distances[o.unitIdA] = double.infinity;
+        unvisited.add(o.unitIdA);
+      }
+      if (!distances.containsKey(o.unitIdB)) {
+        distances[o.unitIdB] = double.infinity;
+        unvisited.add(o.unitIdB);
+      }
+    }
 
     distances[startNodeId] = 0.0;
 
@@ -85,6 +99,29 @@ class RoutingEngine {
         crossSlopePercent: e.crossSlopePercent,
         widthMeters: e.widthMeters,
         hasTactilePaving: e.hasTactilePaving,
+      ));
+    }
+    
+    for (var o in openings) {
+      // Synthesize an edge for the opening
+      final isDoorAccessible = o.isAccessible && 
+          !AdaConstants.isDoorWidthViolation(o.clearWidthMeters) && 
+          !AdaConstants.isThresholdViolation(o.thresholdHeightMm);
+          
+      final openingEdge = CorridorEdge(
+        fromId: o.unitIdA,
+        toId: o.unitIdB,
+        distanceMeters: 1.0,
+        type: 'door',
+        isAccessible: isDoorAccessible,
+      );
+      adj.putIfAbsent(o.unitIdA, () => []).add(openingEdge);
+      adj.putIfAbsent(o.unitIdB, () => []).add(CorridorEdge(
+        fromId: o.unitIdB,
+        toId: o.unitIdA,
+        distanceMeters: 1.0,
+        type: 'door',
+        isAccessible: isDoorAccessible,
       ));
     }
 
@@ -112,9 +149,11 @@ class RoutingEngine {
         // Strict ADA filter for wheelchair accessible routes
         if (preference == VerticalPreference.wheelchairAccessible) {
           if (!edge.isAccessible || edge.type == 'stair_vertical') continue;
-          if (AdaConstants.isSlopeViolation(edge.runningSlopePercent)) continue;
-          if (AdaConstants.isCrossSlopeViolation(edge.crossSlopePercent)) continue;
-          if (AdaConstants.isWidthViolation(edge.widthMeters)) continue;
+          if (edge.type != 'door') {
+            if (AdaConstants.isSlopeViolation(edge.runningSlopePercent)) continue;
+            if (AdaConstants.isCrossSlopeViolation(edge.crossSlopePercent)) continue;
+            if (AdaConstants.isWidthViolation(edge.widthMeters)) continue;
+          }
         }
 
         double edgeWeight = edge.distanceMeters;

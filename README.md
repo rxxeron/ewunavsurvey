@@ -1,65 +1,77 @@
-# EWUNav Campus Surveyor
+# EWUNav Surveyor 2.0: Industry-Standard SLAM & IMDF Mapping Suite
 
-Autonomous Indoor Mapping & Building SLAM Engine for East West University campus.
+![EWUNav Logo](assets/icons/app_icon.png)
 
-## Overview
-EWUNav Campus Surveyor is a mobile Flutter application designed for indoor surveying. It utilizes zero-hardware Pedestrian Dead Reckoning (PDR), compass fusion, Wi-Fi fingerprinting, and SLAM graph construction to create highly accurate indoor maps without requiring external hardware. It outputs IMDF and GeoJSON formats to enable accessible indoor navigation.
+**EWUNav Surveyor** is an enterprise-grade, autonomous indoor mapping and SLAM (Simultaneous Localization and Mapping) surveying suite built with Flutter. Designed for the East West University campus but scalable to any venue, it allows field operators to generate **OGC IMDF (Indoor Mapping Data Format)** and **GeoJSON** blueprints entirely on-device using zero-hardware Pedestrian Dead Reckoning (PDR).
 
-## Features
-- Zero-hardware PDR (accelerometer-based step detection with Weinberg stride model)
-- Complementary compass + gyroscope heading fusion with building-aligned snapping
-- Real-time SLAM corridor graph construction with loop closure optimization
-- Multi-floor vertical portal transitions (stairs, elevators)
-- ADA wheelchair accessibility auditing and routing
-- Wi-Fi fingerprint collection for positioning
-- Polygon area zone detection (rooms, atriums, courtyards)
-- IMDF & GeoJSON export for indoor mapping standards
-- SQLite local persistence with schema migrations
-- Photo attachment for door/corridor/room auditing
+## 🚀 Key Capabilities
 
-## Architecture
-- `lib/models/`: Data models representing map entities, sensor data, and database schemas.
-- `lib/services/`: Core business logic including SLAM algorithms, sensor processing, routing, and database operations.
-- `lib/views/`: Flutter UI components for the surveyor interface, map visualization, and data entry.
-- `lib/constants/`: Configuration and standardized values, including ADA (Americans with Disabilities Act) accessibility standards.
+### 📍 Zero-Hardware PDR & SLAM
+- **Dynamic Weinberg Stride Calibration:** Accurately measures and persists per-user step lengths.
+- **Barometric Altitude Tracking:** Detects floor transitions using high-precision pressure drop telemetry (`environment_sensors`).
+- **Compass Fusion with Baseline Anchoring:** Locks device heading to the true north architectural baseline of the building.
+- **Multi-Pass Snapping:** Intelligently snaps intersecting paths within a 1.5m radius to generate clean, unified centerlines.
+- **Coverage Heatmaps:** Renders real-time 2x2m surveyor density overlays directly on the canvas.
 
-## Prerequisites
-- Flutter SDK >= 3.13.4
-- Android device with accelerometer, gyroscope, magnetometer sensors
-- Wi-Fi scanning permissions (Android)
-- Location permissions for GPS baseline anchoring
+### ♿ ADA & Wheelchair Accessibility First
+EWUNav Surveyor guarantees safe routing for users with disabilities by embedding ADA parameters directly into the graph:
+- **Corridor Edges:** `runningSlopePercent`, `crossSlopePercent`, `widthMeters`, and `tactilePaving`.
+- **Openings (Doors):** `clearWidthMeters`, `thresholdHeightMm`, and `doorMechanism`.
+- **Wheelchair Routing:** The multi-floor Dijkstra algorithm strictly bypasses slopes > 8.33% and non-compliant doorframes.
 
-## Getting Started
+### 🏢 OGC IMDF Architecture
+EWUNav aligns its data model strictly with the **Apple Indoor Survey** and **OGC IMDF v1.0.0** specifications:
+- **27+ Standardized Room Categories** (Atrium, RestroomMale, ServerRoom, Walkway, etc.).
+- **Amenities & Openings:** Distinct models for POIs and Portals.
+- **Zip Archive Compiler:** The built-in `ExportManager` generates `venue.geojson`, `level.geojson`, and `unit.geojson` directly into an IMDF `.zip` file for immediate native sharing via `share_plus`.
+
+## 🛠️ Architecture & Tech Stack
+
+- **Framework:** Flutter SDK >= 3.13.4
+- **Persistence:** SQLite (`sqflite`) with atomic `SurveyRepository` pattern and v3 schema migrations.
+- **Sensor Fusion:** Accelerometer, Gyroscope, Magnetometer, Barometer.
+- **Testing:** 100% core logic coverage (`flutter_test`).
+
+## 🏗️ Getting Started
+
+### Prerequisites
+- Android physical device (Emulator sensors are insufficient for SLAM/PDR).
+- Location & Wi-Fi Scanning Permissions (for GPS anchoring and BSSID fingerprinting).
+
+### Installation
 ```bash
-cd ewunav
+git clone https://github.com/rxxeron/ewunavsurvey.git
+cd ewunavsurvey/ewunav
 flutter pub get
-flutter run
 ```
 
-## Project Structure
-- `lib/main.dart`: Application entry point.
-- `lib/services/slam_surveyor_engine.dart`: Core SLAM engine implementation.
-- `lib/services/pdr_processor.dart`: Pedestrian Dead Reckoning logic.
-- `lib/services/database_helper.dart`: SQLite database management.
-- `lib/views/surveyor_map_view.dart`: Main map UI.
+### Build & Run
+```bash
+# Debug Mode
+flutter run
 
-## Database Schema
-The app uses SQLite v3 for local persistence with the following key tables:
-- `rooms`: Map landmarks and points of interest.
-- `edges`: Graph connections (corridors, doors) between rooms/nodes.
-- `wifi_fingerprints`: Collected Wi-Fi beacon signals for positioning.
-- `step_logs`: Historical PDR step events for trajectory reconstruction.
-- `area_zones`: Polygonal spatial regions (rooms, atriums).
-- `openings`: Doors and transitional spaces.
-- `amenities`: Map amenities (restrooms, water fountains).
+# Release APK (Recommended for accurate sensor telemetry)
+flutter build apk --release
+```
 
-## ADA Compliance
-The project enforces accessibility standards through centralized `AdaConstants` (corridor widths, slopes, etc.) which influence map data collection and Dijkstra-based wheelchair-accessible routing.
-
-## Testing
+## 🧪 Testing
+The architecture is rigorously tested. To run the suite:
 ```bash
 flutter test
 ```
+*Current Coverage includes Multi-Floor Routing, ADA Slopes, Compass Snapping, BleFingerprints, and AreaZone Shoelace calculations.*
 
-## License
-MIT
+## 📜 Database Schema (v3)
+- `imdf_metadata`: Venue properties and building hierarchy.
+- `rooms`: Points of Interest and 27+ IMDF units.
+- `edges`: SLAM trajectory graph containing path coordinates and ADA constraints.
+- `openings`: Doorways and portals with clearance metadata.
+- `amenities`: POIs like Fire Extinguishers and Escalators.
+- `area_zones`: Shoelace polygon coordinate representations for drawn zones.
+- `wifi_fingerprints` & `ble_fingerprints`: Attenuation-logged RF signals for localization.
+
+## 🤝 Contributing
+Please run `flutter analyze` and ensure all `flutter test` suites pass before opening PRs. 
+
+---
+*Built for East West University Campus Navigation.*

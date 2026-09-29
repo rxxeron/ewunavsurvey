@@ -12,6 +12,7 @@ class Opening {
   final double? thresholdHeightMm;
   final bool isAccessible;
   final bool isEmergencyExit;
+  final String? photoPath;
 
   Opening({
     required this.id,
@@ -24,6 +25,7 @@ class Opening {
     this.thresholdHeightMm,
     this.isAccessible = true,
     this.isEmergencyExit = false,
+    this.photoPath,
   });
 
   Map<String, dynamic> toJson() => {
@@ -37,6 +39,7 @@ class Opening {
     'thresholdHeightMm': thresholdHeightMm,
     'isAccessible': isAccessible,
     'isEmergencyExit': isEmergencyExit,
+    'photoPath': photoPath,
   };
 
   factory Opening.fromJson(Map<String, dynamic> json) => Opening(
@@ -50,5 +53,6 @@ class Opening {
     thresholdHeightMm: (json['thresholdHeightMm'] as num?)?.toDouble(),
     isAccessible: json['isAccessible'] == null ? true : (json['isAccessible'] == true || json['isAccessible'] == 1),
     isEmergencyExit: json['isEmergencyExit'] == true || json['isEmergencyExit'] == 1,
+    photoPath: json['photoPath'] as String?,
   );
 }

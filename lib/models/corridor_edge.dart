@@ -10,6 +10,7 @@ class CorridorEdge {
   final String? surfaceType;
   final bool hasTactilePaving;
   final int passCount;
+  final String? photoPath;
 
   CorridorEdge({
     required this.fromId,
@@ -23,6 +24,7 @@ class CorridorEdge {
     this.surfaceType,
     this.hasTactilePaving = false,
     this.passCount = 1,
+    this.photoPath,
   });
 
   Map<String, dynamic> toJson() => {
@@ -37,6 +39,7 @@ class CorridorEdge {
     'surfaceType': surfaceType,
     'hasTactilePaving': hasTactilePaving,
     'passCount': passCount,
+    'photoPath': photoPath,
   };
 
   factory CorridorEdge.fromJson(Map<String, dynamic> json) => CorridorEdge(
@@ -53,5 +56,6 @@ class CorridorEdge {
     surfaceType: json['surfaceType'] as String?,
     hasTactilePaving: json['hasTactilePaving'] == true || json['hasTactilePaving'] == 1,
     passCount: (json['passCount'] as num?)?.toInt() ?? 1,
+    photoPath: json['photoPath'] as String?,
   );
 }
