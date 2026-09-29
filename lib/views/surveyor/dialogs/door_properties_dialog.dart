@@ -241,6 +241,7 @@ class _DoorPropertiesDialogState extends State<DoorPropertiesDialog> {
               thresholdHeightMm: th,
               isAccessible: autoAccessible,
               isEmergencyExit: _isEmergencyExit,
+              photoPath: _photoPath,
             );
 
             widget.dbService.saveOpening(opening);

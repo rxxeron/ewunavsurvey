@@ -76,62 +76,84 @@ class ExportManager {
 
     // Export edges as LineStrings
     for (var edge in survey.edges) {
+      double? x1, y1, x2, y2;
+      String floor1 = '', floor2 = '';
+
       final fromParts = edge.fromId.split('_');
-      final toParts = edge.toId.split('_');
-      if (fromParts.length >= 4 && toParts.length >= 4) {
-        double? x1 = double.tryParse(fromParts[2]);
-        double? y1 = double.tryParse(fromParts[3]);
-        double? x2 = double.tryParse(toParts[2]);
-        double? y2 = double.tryParse(toParts[3]);
-        
-        if (x1 == null || y1 == null || x2 == null || y2 == null) {
-          continue;
+      if (fromParts.length >= 4 && fromParts[0] == 'step') {
+        floor1 = fromParts[1];
+        x1 = double.tryParse(fromParts[2]);
+        y1 = double.tryParse(fromParts[3]);
+      } else {
+        final roomMatches = survey.rooms.where((r) => r.id == edge.fromId);
+        if (roomMatches.isNotEmpty) {
+          x1 = roomMatches.first.x;
+          y1 = roomMatches.first.y;
+          floor1 = roomMatches.first.floor;
         }
-
-        final geo1 = engine.geospatialService.calculatePosition(
-          baseLat: survey.lat,
-          baseLng: survey.lng,
-          canvasX: x1,
-          canvasY: y1,
-          originCanvasX: survey.originX,
-          originCanvasY: survey.originY,
-          pixelsPerMeter: engine.config.pixelsPerMeter,
-          floorName: fromParts[1],
-        );
-
-        final geo2 = engine.geospatialService.calculatePosition(
-          baseLat: survey.lat,
-          baseLng: survey.lng,
-          canvasX: x2,
-          canvasY: y2,
-          originCanvasX: survey.originX,
-          originCanvasY: survey.originY,
-          pixelsPerMeter: engine.config.pixelsPerMeter,
-          floorName: toParts[1],
-        );
-
-        features.add({
-          "type": "Feature",
-          "geometry": {
-            "type": "LineString",
-            "coordinates": [
-              [geo1.longitude, geo1.latitude],
-              [geo2.longitude, geo2.latitude]
-            ]
-          },
-          "properties": {
-            "type": edge.type,
-            "isAccessible": edge.isAccessible,
-            "passCount": edge.passCount,
-            "distanceMeters": edge.distanceMeters,
-            "widthMeters": edge.widthMeters,
-            "runningSlopePercent": edge.runningSlopePercent,
-            "crossSlopePercent": edge.crossSlopePercent,
-            "surfaceType": edge.surfaceType,
-            "hasTactilePaving": edge.hasTactilePaving
-          }
-        });
       }
+
+      final toParts = edge.toId.split('_');
+      if (toParts.length >= 4 && toParts[0] == 'step') {
+        floor2 = toParts[1];
+        x2 = double.tryParse(toParts[2]);
+        y2 = double.tryParse(toParts[3]);
+      } else {
+        final roomMatches = survey.rooms.where((r) => r.id == edge.toId);
+        if (roomMatches.isNotEmpty) {
+          x2 = roomMatches.first.x;
+          y2 = roomMatches.first.y;
+          floor2 = roomMatches.first.floor;
+        }
+      }
+
+      if (x1 == null || y1 == null || x2 == null || y2 == null) {
+        continue;
+      }
+
+      final geo1 = engine.geospatialService.calculatePosition(
+        baseLat: survey.lat,
+        baseLng: survey.lng,
+        canvasX: x1,
+        canvasY: y1,
+        originCanvasX: survey.originX,
+        originCanvasY: survey.originY,
+        pixelsPerMeter: engine.config.pixelsPerMeter,
+        floorName: floor1,
+      );
+
+      final geo2 = engine.geospatialService.calculatePosition(
+        baseLat: survey.lat,
+        baseLng: survey.lng,
+        canvasX: x2,
+        canvasY: y2,
+        originCanvasX: survey.originX,
+        originCanvasY: survey.originY,
+        pixelsPerMeter: engine.config.pixelsPerMeter,
+        floorName: floor2,
+      );
+
+      features.add({
+        "type": "Feature",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [geo1.longitude, geo1.latitude],
+            [geo2.longitude, geo2.latitude]
+          ]
+        },
+        "properties": {
+          "type": edge.type,
+          "isAccessible": edge.isAccessible,
+          "passCount": edge.passCount,
+          "distanceMeters": edge.distanceMeters,
+          "widthMeters": edge.widthMeters,
+          "runningSlopePercent": edge.runningSlopePercent,
+          "crossSlopePercent": edge.crossSlopePercent,
+          "surfaceType": edge.surfaceType,
+          "hasTactilePaving": edge.hasTactilePaving
+        }
+      });
     }
 
     final featureCollection = {

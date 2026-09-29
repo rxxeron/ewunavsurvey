@@ -23,6 +23,7 @@ import 'dialogs/azimuth_alignment_dialog.dart';
 import 'dialogs/stride_calibration_dialog.dart';
 import 'dialogs/corridor_properties_dialog.dart';
 import 'dialogs/door_properties_dialog.dart';
+import '../../models/opening.dart';
 
 class SurveyorScreen extends StatefulWidget {
   final SlamSurveyorEngine engine;
@@ -112,7 +113,7 @@ class _SurveyorScreenState extends State<SurveyorScreen> {
       context: context,
       builder: (context) => FacultyRoomModal(
         doorSide: doorSide,
-        onSave: (name, roomNum, cat, dept, side, cap, faculty) {
+        onSave: (name, roomNum, cat, dept, side, cap, faculty, dWidth, tHeight, photoPath) {
           final room = widget.engine.markRoomDoor(
             name: name,
             roomNumber: roomNum,
@@ -123,6 +124,21 @@ class _SurveyorScreenState extends State<SurveyorScreen> {
             faculty: faculty,
           );
           room.facultyMembers = faculty;
+          room.photoPath = photoPath; // Set photoPath directly on room for now
+          
+          // Synthesize an Opening for ADA graph?
+          final opening = Opening(
+            id: 'op_${DateTime.now().millisecondsSinceEpoch}',
+            levelId: widget.engine.currentFloor,
+            unitIdA: 'corridor_${room.id}', // Fake for now if not known, or what does markRoomDoor do?
+            unitIdB: room.id,
+            clearWidthMeters: dWidth,
+            thresholdHeightMm: tHeight,
+            photoPath: photoPath,
+          );
+          widget.dbService.saveOpening(opening);
+          widget.engine.openings.add(opening);
+          
           widget.dbService.saveRoom(room);
           setState(() {});
         },

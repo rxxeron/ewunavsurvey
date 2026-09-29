@@ -98,5 +98,6 @@ class RoomNode {
     longitude: (json['longitude'] as num?)?.toDouble(),
     altitudeMeters: (json['altitudeMeters'] as num?)?.toDouble(),
     floorHeightMeters: (json['floorHeightMeters'] as num?)?.toDouble(),
+    photoPath: json['photoPath'] as String?,
   );
 }

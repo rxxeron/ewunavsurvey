@@ -13,6 +13,9 @@ class FacultyRoomModal extends StatefulWidget {
     String doorSide,
     int capacity,
     List<FacultyMember> faculty,
+    double doorWidth,
+    double thresholdHeight,
+    String? photoPath,
   ) onSave;
 
   const FacultyRoomModal({
@@ -42,6 +45,9 @@ class _FacultyRoomModalState extends State<FacultyRoomModal> {
   final _facHoursController = TextEditingController();
   bool _showAddFaculty = false;
   String? _roomPhotoPath;
+  
+  final _doorWidthCtrl = TextEditingController(text: '0.90');
+  final _thresholdHeightCtrl = TextEditingController(text: '6.0');
 
   @override
   void initState() {
@@ -59,6 +65,8 @@ class _FacultyRoomModalState extends State<FacultyRoomModal> {
     _facDesignationController.dispose();
     _facEmailController.dispose();
     _facHoursController.dispose();
+    _doorWidthCtrl.dispose();
+    _thresholdHeightCtrl.dispose();
     super.dispose();
   }
 
@@ -235,6 +243,44 @@ class _FacultyRoomModalState extends State<FacultyRoomModal> {
                   ),
                 ],
               ),
+              const SizedBox(height: 12),
+
+              // ADA Details
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _doorWidthCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      style: const TextStyle(color: Colors.white),
+                      decoration: const InputDecoration(
+                        labelText: 'Door Width (m)',
+                        hintText: '0.90',
+                        labelStyle: TextStyle(color: Colors.white70),
+                        filled: true,
+                        fillColor: Color(0xFF141624),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _thresholdHeightCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      style: const TextStyle(color: Colors.white),
+                      decoration: const InputDecoration(
+                        labelText: 'Threshold (mm)',
+                        hintText: '6.0',
+                        labelStyle: TextStyle(color: Colors.white70),
+                        filled: true,
+                        fillColor: Color(0xFF141624),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 14),
 
               PhotoAttachmentWidget(
@@ -364,6 +410,8 @@ class _FacultyRoomModalState extends State<FacultyRoomModal> {
                             ? _nameController.text.trim()
                             : (roomNum.isNotEmpty ? 'Room $roomNum' : 'Room');
                         final cap = int.tryParse(_capacityController.text.trim()) ?? 40;
+                        final dWidth = double.tryParse(_doorWidthCtrl.text.trim()) ?? 0.90;
+                        final tHeight = double.tryParse(_thresholdHeightCtrl.text.trim()) ?? 6.0;
 
                         widget.onSave(
                           name,
@@ -373,6 +421,9 @@ class _FacultyRoomModalState extends State<FacultyRoomModal> {
                           _selectedSide,
                           cap,
                           _facultyList,
+                          dWidth,
+                          tHeight,
+                          _roomPhotoPath,
                         );
                         Navigator.pop(context);
                       },

@@ -39,7 +39,7 @@ class DbService {
       final path = join(documentsDirectory.path, 'ewunav_survey.db');
       return await openDatabase(
         path,
-        version: 3,
+        version: 4,
         onCreate: (db, version) async {
           await db.execute('''
             CREATE TABLE rooms (
@@ -59,7 +59,8 @@ class DbService {
               latitude REAL,
               longitude REAL,
               altitudeMeters REAL,
-              floorHeightMeters REAL
+              floorHeightMeters REAL,
+              photoPath TEXT
             )
           ''');
 
@@ -76,7 +77,8 @@ class DbService {
               crossSlopePercent REAL,
               surfaceType TEXT,
               hasTactilePaving INTEGER DEFAULT 0,
-              passCount INTEGER DEFAULT 1
+              passCount INTEGER DEFAULT 1,
+              photoPath TEXT
             )
           ''');
 
@@ -135,7 +137,8 @@ class DbService {
               clearWidthMeters REAL,
               thresholdHeightMm REAL,
               isAccessible INTEGER,
-              isEmergencyExit INTEGER
+              isEmergencyExit INTEGER,
+              photoPath TEXT
             )
           ''');
           
@@ -153,7 +156,16 @@ class DbService {
           ''');
         },
         onUpgrade: (db, oldVersion, newVersion) async {
-                if (oldVersion < 3) {
+          if (oldVersion < 4) {
+            try {
+              await db.execute('ALTER TABLE rooms ADD COLUMN photoPath TEXT');
+              await db.execute('ALTER TABLE edges ADD COLUMN photoPath TEXT');
+              await db.execute('ALTER TABLE openings ADD COLUMN photoPath TEXT');
+            } catch (e) {
+              debugPrint('DB photoPath migration notice: $e');
+            }
+          }
+          if (oldVersion < 3) {
         await db.execute('''
           CREATE TABLE IF NOT EXISTS openings(
             id TEXT PRIMARY KEY,
@@ -262,6 +274,7 @@ class DbService {
         'longitude': room.longitude,
         'altitudeMeters': room.altitudeMeters,
         'floorHeightMeters': room.floorHeightMeters,
+        'photoPath': room.photoPath,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
@@ -284,6 +297,7 @@ class DbService {
         'surfaceType': edge.surfaceType,
         'hasTactilePaving': edge.hasTactilePaving ? 1 : 0,
         'passCount': edge.passCount,
+        'photoPath': edge.photoPath,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
@@ -307,6 +321,7 @@ class DbService {
         'thresholdHeightMm': opening.thresholdHeightMm,
         'isAccessible': opening.isAccessible ? 1 : 0,
         'isEmergencyExit': opening.isEmergencyExit ? 1 : 0,
+        'photoPath': opening.photoPath,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
@@ -512,6 +527,7 @@ class DbService {
         longitude: (r['longitude'] as num?)?.toDouble(),
         altitudeMeters: (r['altitudeMeters'] as num?)?.toDouble(),
         floorHeightMeters: (r['floorHeightMeters'] as num?)?.toDouble(),
+        photoPath: r['photoPath'] as String?,
       );
     }).toList();
   }

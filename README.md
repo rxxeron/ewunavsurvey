@@ -29,7 +29,7 @@ EWUNav aligns its data model strictly with the **Apple Indoor Survey** and **OGC
 
 - **Framework:** Flutter SDK >= 3.13.4
 - **Persistence:** SQLite (`sqflite`) with atomic `SurveyRepository` pattern and v3 schema migrations.
-- **Sensor Fusion:** Accelerometer, Gyroscope, Magnetometer, Barometer.
+- **Sensor Fusion:** Accelerometer, Gyroscope, Magnetometer,
 - **Testing:** 100% core logic coverage (`flutter_test`).
 
 ## 🏗️ Getting Started

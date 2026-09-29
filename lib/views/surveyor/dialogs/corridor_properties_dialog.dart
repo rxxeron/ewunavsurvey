@@ -434,6 +434,7 @@ class _CorridorPropertiesDialogState extends State<CorridorPropertiesDialog> {
                 surfaceType: _selectedSurface,
                 hasTactilePaving: _hasTactilePaving,
                 passCount: edge.passCount,
+                photoPath: _photoPath,
               );
 
               final idx = widget.engine.edges.indexOf(edge);

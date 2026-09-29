@@ -24,6 +24,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
     final router = RoutingEngine(
       nodes: widget.engine.rooms,
       edges: widget.engine.edges,
+      openings: widget.engine.openings,
     );
 
     final res = router.calculateRoute(
