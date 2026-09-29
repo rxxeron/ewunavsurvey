@@ -11,6 +11,7 @@ import '../models/area_zone.dart';
 import '../models/opening.dart';
 import '../models/wifi_fingerprint.dart';
 import '../models/step_log_record.dart';
+import '../models/building_survey_data.dart';
 
 class SurveyRepository {
   final SlamSurveyorEngine engine;
