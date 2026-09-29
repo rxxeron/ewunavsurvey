@@ -150,12 +150,10 @@ class SurveyRepository {
       if (file == null) return false;
 
       final snapshot = {
-        'version': '1.0',
+        'version': '2.0',
         'savedAtMs': DateTime.now().millisecondsSinceEpoch,
         'building': engine.currentBuilding,
-        'currentFloor': engine.currentFloor,
-        'graph': engine.exportGraphJson(),
-        'stepLogs': engine.stepLogs.map((s) => s.toJson()).toList(),
+        'data': engine.activeSurvey!.toJson(),
       };
 
       await file.writeAsString(jsonEncode(snapshot), flush: true);
@@ -188,14 +186,9 @@ class SurveyRepository {
       final content = await file.readAsString();
       final data = jsonDecode(content) as Map<String, dynamic>;
 
-      if (data['building'] == buildingName && data['stepLogs'] is List) {
-        final stepList = (data['stepLogs'] as List)
-            .map((s) => StepLogRecord.fromJson(s as Map<String, dynamic>))
-            .toList();
-
-        // Restore into engine
-        engine.stepLogs.clear();
-        engine.stepLogs.addAll(stepList);
+      if (data['data'] != null) {
+        final survey = BuildingSurveyData.fromJson(data['data'] as Map<String, dynamic>);
+        engine.loadActiveSurvey(survey);
         return true;
       }
       return false;

@@ -178,6 +178,12 @@ class SlamSurveyorEngine extends ChangeNotifier {
   }
 
   /// Backward-compatible setBuilding method
+  void loadActiveSurvey(BuildingSurveyData survey) {
+    _buildingSurveys[survey.name] = survey;
+    _currentBuildingName = survey.name;
+    notifyListeners();
+  }
+
   void setBuilding({
     required String name,
     required double lat,
