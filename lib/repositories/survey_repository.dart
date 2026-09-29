@@ -120,6 +120,28 @@ class SurveyRepository {
     }
   }
 
+  Future<String?> getLatestBackupName() async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final files = dir.listSync().whereType<File>().where((f) => f.path.contains('ewunav_backup_') && f.path.endsWith('.json')).toList();
+      if (files.isEmpty) return null;
+      
+      files.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
+      final name = files.first.path.split('ewunav_backup_').last.replaceAll('.json', '').replaceAll('_', ' ');
+      return name;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<bool> loadLatestBackupIfAvailable() async {
+    final latest = await getLatestBackupName();
+    if (latest != null) {
+      return await restoreFromCrashRecoveryBackup(latest);
+    }
+    return false;
+  }
+
   /// Automatically snapshots survey state to local disk every 30s
   Future<bool> saveCrashRecoveryBackup() async {
     if (!engine.hasActiveBuilding) return false;

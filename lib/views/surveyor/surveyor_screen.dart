@@ -25,14 +25,18 @@ import 'dialogs/corridor_properties_dialog.dart';
 import 'dialogs/door_properties_dialog.dart';
 import '../../models/opening.dart';
 
+import '../../repositories/survey_repository.dart';
+
 class SurveyorScreen extends StatefulWidget {
   final SlamSurveyorEngine engine;
   final DbService dbService;
+  final SurveyRepository repository;
 
   const SurveyorScreen({
     super.key,
     required this.engine,
     required this.dbService,
+    required this.repository,
   });
 
   @override
@@ -54,14 +58,32 @@ class _SurveyorScreenState extends State<SurveyorScreen> {
       widget.dbService.saveStepLog(widget.engine.stepLogs.first);
     }
 
-    // Load persisted area zones for the active floor
-    widget.dbService.getZonesForFloor(widget.engine.currentFloor).then((savedZones) {
-      if (widget.engine.hasActiveBuilding && widget.engine.zones.isEmpty) {
-        widget.engine.zones.addAll(savedZones);
-        if (mounted) setState(() {});
-      }
-    });
+    _bootSequence();
   }
+
+  Future<void> _bootSequence() async {
+    final loaded = await widget.repository.loadLatestBackupIfAvailable();
+    if (loaded && widget.engine.hasActiveBuilding) {
+      final savedZones = await widget.dbService.getZonesForFloor(widget.engine.currentFloor);
+      if (widget.engine.zones.isEmpty) {
+        widget.engine.zones.addAll(savedZones);
+      }
+      if (mounted) setState(() {});
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Restored previous session: ${widget.engine.currentBuilding}'),
+          backgroundColor: const Color(0xFF64B5F6),
+        ));
+      }
+    } else {
+      widget.dbService.getZonesForFloor(widget.engine.currentFloor).then((savedZones) {
+        if (widget.engine.hasActiveBuilding && widget.engine.zones.isEmpty) {
+          widget.engine.zones.addAll(savedZones);
+        }
+      });
+    }
+  }
+
 
   void _openAddBuildingDialog() {
     AddBuildingDialog.show(

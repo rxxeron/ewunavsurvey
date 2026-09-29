@@ -7,6 +7,7 @@ import 'services/compass_fusion_service.dart';
 import 'services/wifi_scanner_service.dart';
 import 'services/slam_surveyor_engine.dart';
 import 'services/db_service.dart';
+import 'repositories/survey_repository.dart';
 import 'views/surveyor/surveyor_screen.dart';
 
 Future<void> _requestPermissions() async {
@@ -37,11 +38,17 @@ void main() async {
     wifiScanner: wifiScanner,
   );
 
+  final surveyRepository = SurveyRepository(
+    engine: slamEngine,
+    dbService: dbService,
+  );
+
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider<SlamSurveyorEngine>.value(value: slamEngine),
         Provider<DbService>.value(value: dbService),
+        Provider<SurveyRepository>.value(value: surveyRepository),
       ],
       child: const EWUNavApp(),
     ),
@@ -55,6 +62,7 @@ class EWUNavApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final slamEngine = Provider.of<SlamSurveyorEngine>(context);
     final dbService = Provider.of<DbService>(context);
+    final repo = Provider.of<SurveyRepository>(context);
 
     return MaterialApp(
       title: 'EWUNav Surveyor',
@@ -68,7 +76,7 @@ class EWUNavApp extends StatelessWidget {
           surface: Color(0xFF1E2235),
         ),
       ),
-      home: SurveyorScreen(engine: slamEngine, dbService: dbService),
+      home: SurveyorScreen(engine: slamEngine, dbService: dbService, repository: repo),
     );
   }
 }
