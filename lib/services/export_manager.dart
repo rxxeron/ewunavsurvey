@@ -59,7 +59,6 @@ class ExportManager {
 
     // 3. Wi-Fi & BLE Telemetry Fingerprints (Custom Extension)
     final telemetryData = {
-      "survey_id": survey.id,
       "building_name": survey.name,
       "total_scans": survey.fingerprints.length,
       "wifi_fingerprints": survey.fingerprints.map((fp) => fp.toJson()).toList(),
