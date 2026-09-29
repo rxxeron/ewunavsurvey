@@ -45,7 +45,8 @@ class WiFiScannerService {
         if (startResult) {
           final results = await WiFiScan.instance.getScannedResults();
           for (var ap in results) {
-            if (ap.bssid.isNotEmpty) {
+            // Noise floor filtering (drop < -85 dBm)
+            if (ap.level >= -85 && ap.bssid.isNotEmpty) {
               detectedAPs.add(EwuWiFiSignal(
                 bssid: ap.bssid,
                 ssid: ap.ssid.isNotEmpty ? ap.ssid : 'Hidden AP',

@@ -1,10 +1,12 @@
 import '../models/room_node.dart';
 import '../models/corridor_edge.dart';
+import '../constants/ada_constants.dart';
 
 enum VerticalPreference {
   fastest,
   preferStairs,
   preferElevator,
+  wheelchairAccessible,
 }
 
 class RouteSegment {
@@ -54,6 +56,19 @@ class RoutingEngine {
       distances[n.id] = double.infinity;
       unvisited.add(n.id);
     }
+
+    // Also register corridor step nodes from edges
+    for (var e in edges) {
+      if (!distances.containsKey(e.fromId)) {
+        distances[e.fromId] = double.infinity;
+        unvisited.add(e.fromId);
+      }
+      if (!distances.containsKey(e.toId)) {
+        distances[e.toId] = double.infinity;
+        unvisited.add(e.toId);
+      }
+    }
+
     distances[startNodeId] = 0.0;
 
     // Adjacency list
@@ -66,6 +81,10 @@ class RoutingEngine {
         distanceMeters: e.distanceMeters,
         type: e.type,
         isAccessible: e.isAccessible,
+        runningSlopePercent: e.runningSlopePercent,
+        crossSlopePercent: e.crossSlopePercent,
+        widthMeters: e.widthMeters,
+        hasTactilePaving: e.hasTactilePaving,
       ));
     }
 
@@ -89,6 +108,14 @@ class RoutingEngine {
       final neighbors = adj[current] ?? [];
       for (var edge in neighbors) {
         if (!unvisited.contains(edge.toId)) continue;
+
+        // Strict ADA filter for wheelchair accessible routes
+        if (preference == VerticalPreference.wheelchairAccessible) {
+          if (!edge.isAccessible || edge.type == 'stair_vertical') continue;
+          if (AdaConstants.isSlopeViolation(edge.runningSlopePercent)) continue;
+          if (AdaConstants.isCrossSlopeViolation(edge.crossSlopePercent)) continue;
+          if (AdaConstants.isWidthViolation(edge.widthMeters)) continue;
+        }
 
         double edgeWeight = edge.distanceMeters;
 
@@ -121,7 +148,22 @@ class RoutingEngine {
     }
 
     final nodeMap = {for (var n in nodes) n.id: n};
-    final List<RoomNode> pathNodes = pathIds.map((id) => nodeMap[id]!).toList();
+    final List<RoomNode> pathNodes = pathIds.map((id) {
+      if (nodeMap.containsKey(id)) return nodeMap[id]!;
+      // Synthesize a waypoint stub for corridor step nodes
+      final parts = id.split('_');
+      final double x = parts.length >= 3 ? (double.tryParse(parts[parts.length - 2]) ?? 0) : 0;
+      final double y = parts.length >= 4 ? (double.tryParse(parts[parts.length - 1]) ?? 0) : 0;
+      final String floor = parts.length >= 2 ? parts[1] : '';
+      return RoomNode(
+        id: id,
+        name: 'Waypoint',
+        floor: floor,
+        category: RoomCategory.corridor,
+        x: x,
+        y: y,
+      );
+    }).toList();
 
     // Synthesize turn-by-turn guidance segments
     final List<RouteSegment> segments = [];

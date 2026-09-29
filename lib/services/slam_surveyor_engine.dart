@@ -1,10 +1,15 @@
+import 'dart:async';
 import 'dart:math' as math;
+import 'package:ewunavsurvey/models/survey_config.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import '../models/room_node.dart';
 import '../models/corridor_edge.dart';
 import '../models/wifi_fingerprint.dart';
 import '../models/step_log_record.dart';
 import '../models/area_zone.dart';
+import '../models/opening.dart';
+import '../models/amenity.dart';
 import 'pdr_engine.dart';
 import 'compass_fusion_service.dart';
 import 'wifi_scanner_service.dart';
@@ -56,6 +61,8 @@ class BuildingSurveyData {
   final List<WiFiFingerprint> fingerprints;
   final List<StepLogRecord> stepLogs;
   final List<AreaZone> zones;
+  final List<Opening> openings;
+  final List<Amenity> amenities;
 
   BuildingSurveyData({
     required this.name,
@@ -75,10 +82,13 @@ class BuildingSurveyData {
         edges = [],
         fingerprints = [],
         stepLogs = [],
-        zones = [];
+        zones = [],
+        openings = [],
+        amenities = [];
 }
 
 class SlamSurveyorEngine extends ChangeNotifier {
+  SurveyConfig config = const SurveyConfig();
   final PdrEngine pdrEngine;
   final CompassFusionService compassFusion;
   final WiFiScannerService wifiScanner;
@@ -89,6 +99,7 @@ class SlamSurveyorEngine extends ChangeNotifier {
 
   double pixelsPerMeter = 28.0;
   void Function(StepLogRecord record)? onStepRecorded;
+  StreamSubscription<StepEvent>? _stepSub;
 
   // Active portal state (for stair/elevator multi-floor transition)
   String? activePortalId;
@@ -103,16 +114,33 @@ class SlamSurveyorEngine extends ChangeNotifier {
     GeospatialService? geospatialService,
   }) : geospatialService = geospatialService ?? GeospatialService() {
     // Listen to physical footsteps from PDR
-    pdrEngine.stepStream.listen((event) {
+    _stepSub = pdrEngine.stepStream.listen((event) {
       if (hasActiveBuilding && _isRecording) {
         _advanceOnFootstep(event.strideLengthMeters);
       }
     });
   }
 
+  @override
+  void dispose() {
+    _stepSub?.cancel();
+    pdrEngine.dispose();
+    compassFusion.dispose();
+    super.dispose();
+  }
+
   
   AreaLoopCandidate? pendingLoopCandidate;
   List<AreaZone> get zones => activeSurvey?.zones ?? [];
+  List<Opening> get openings => activeSurvey?.openings ?? [];
+  List<Amenity> get amenities => activeSurvey?.amenities ?? [];
+
+  bool _showHeatmap = false;
+  bool get showHeatmap => _showHeatmap;
+  void toggleHeatmap() {
+    _showHeatmap = !_showHeatmap;
+    notifyListeners();
+  }
 
   bool _isRecording = true;
   bool get isRecording => _isRecording;
@@ -375,23 +403,16 @@ class SlamSurveyorEngine extends ChangeNotifier {
     ));
   }
 
-  void _addTrackPoint() {
-    if (activeSurvey != null) {
-      _addTrackPointFor(activeSurvey!);
-    }
-  }
-
   void notifyEngineUpdate() {
     notifyListeners();
   }
 
-  /// Turn hallway corner (e.g. -90 for Left, +90 for Right, 180 for U-turn)
+  /// Turn hallway corner (e.g. -90/-45 for Left, +45/+90 for Right, 180 for U-turn)
   void turn(double deltaDeg) {
     if (!hasActiveBuilding) return;
     final survey = activeSurvey!;
-    survey.currentHeadingDeg = (survey.currentHeadingDeg + deltaDeg + 360) % 360;
-    // Snap strictly to 0, 90, 180, 270 (Manhattan assumption)
-    survey.currentHeadingDeg = (survey.currentHeadingDeg / 90.0).round() * 90.0 % 360;
+    final raw = (survey.currentHeadingDeg + deltaDeg + 360) % 360;
+    survey.currentHeadingDeg = compassFusion.snapHeading(raw);
     _addTrackPointFor(survey);
     notifyListeners();
   }
@@ -416,8 +437,6 @@ class SlamSurveyorEngine extends ChangeNotifier {
       type: 'corridor',
     ));
 
-    survey.currentX = nextX;
-    survey.currentY = nextY;
     _addTrackPointFor(survey);
 
     final geo = geospatialService.calculatePosition(
@@ -989,12 +1008,52 @@ class SlamSurveyorEngine extends ChangeNotifier {
     notifyListeners();
   }
 
+  
+  
+  Future<void> loadAzimuth() async {
+    final prefs = await SharedPreferences.getInstance();
+    final az = prefs.getDouble('azimuth_$currentBuilding');
+    if (az != null) {
+      compassFusion.setBuildingBaseline(az);
+    } else {
+      compassFusion.setBuildingBaseline(0.0);
+    }
+    notifyListeners();
+  }
+
+  Future<void> saveAzimuth(double newAzimuth) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('azimuth_$currentBuilding', newAzimuth);
+    compassFusion.setBuildingBaseline(newAzimuth);
+    notifyListeners();
+  }
+
+  Future<void> loadKFactor() async {
+    final prefs = await SharedPreferences.getInstance();
+    final k = prefs.getDouble('weinbergK_$currentBuilding');
+    if (k != null) {
+      pdrEngine.updateKFactor(k);
+    } else {
+      pdrEngine.updateKFactor(0.42); // Default
+    }
+    notifyListeners();
+  }
+
+  Future<void> saveKFactor(double newK) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('weinbergK_$currentBuilding', newK);
+    pdrEngine.updateKFactor(newK);
+    notifyListeners();
+  }
+
   void resetSurvey() {
     if (!hasActiveBuilding) return;
     final survey = activeSurvey!;
 
     survey.rooms.clear();
     survey.zones.clear();
+    survey.openings.clear();
+    survey.amenities.clear();
     pendingLoopCandidate = null;
     survey.edges.clear();
     survey.fingerprints.clear();
@@ -1029,6 +1088,8 @@ class SlamSurveyorEngine extends ChangeNotifier {
       'floors': survey.floors,
             'zonesCount': survey.zones.length,
       'zones': survey.zones.map((z) => z.toJson()).toList(),
+      'openings': survey.openings.map((o) => o.toJson()).toList(),
+      'amenities': survey.amenities.map((a) => a.toJson()).toList(),
       'rooms': survey.rooms.map((r) => r.toJson()).toList(),
       'edges': survey.edges.map((e) => e.toJson()).toList(),
       'fingerprintsCount': survey.fingerprints.length,

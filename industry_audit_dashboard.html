@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    .phase-card { transition: all 0.3s ease; }
+    .phase-card:hover { transform: translateY(-2px); }
+    .tab-btn.active { border-bottom: 2px solid var(--primary); color: var(--primary); }
+    .progress-fill { transition: width 1.2s ease-out; }
+    .gap-pulse { animation: pulse 2s ease-in-out infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+    canvas { image-rendering: auto; }
+  </style>
+</head>
+<body class="bg-[var(--background)] text-[var(--foreground)] antialiased p-4">
+
+  <!-- Header -->
+  <div class="mb-6">
+    <div class="flex items-center justify-between flex-wrap gap-3">
+      <div>
+        <h1 class="text-2xl font-bold tracking-tight">EWUNav Surveyor — Industry Audit</h1>
+        <p class="text-[var(--muted-foreground)] text-sm mt-1">Codebase alignment against OGC IMDF · Apple Indoor Survey · BIM/IFC · ISO 18305</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="text-center">
+          <div id="scoreDisplay" class="text-4xl font-black" style="color: var(--primary);">38</div>
+          <div class="text-[var(--muted-foreground)] text-xs">/ 100</div>
+        </div>
+        <div class="w-32 h-3 rounded-full overflow-hidden" style="background: var(--border);">
+          <div id="scoreBar" class="h-full rounded-full progress-fill" style="width: 0%; background: var(--primary);"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="flex gap-1 border-b mb-4" style="border-color: var(--border);">
+    <button class="tab-btn active px-4 py-2 text-sm font-medium" onclick="showTab('radar')">Radar Analysis</button>
+    <button class="tab-btn px-4 py-2 text-sm font-medium text-[var(--muted-foreground)]" onclick="showTab('gaps')">Gap Breakdown</button>
+    <button class="tab-btn px-4 py-2 text-sm font-medium text-[var(--muted-foreground)]" onclick="showTab('imdf')">IMDF Checklist</button>
+    <button class="tab-btn px-4 py-2 text-sm font-medium text-[var(--muted-foreground)]" onclick="showTab('timeline')">Phase Timeline</button>
+    <button class="tab-btn px-4 py-2 text-sm font-medium text-[var(--muted-foreground)]" onclick="showTab('files')">File Inventory</button>
+  </div>
+
+  <!-- Tab: Radar -->
+  <div id="tab-radar" class="tab-content">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div class="rounded-xl p-4 border" style="background: var(--card); border-color: var(--border);">
+        <h3 class="font-semibold text-sm mb-3">Feature Completeness Radar</h3>
+        <canvas id="radarCanvas" width="420" height="420"></canvas>
+      </div>
+      <div class="rounded-xl p-4 border" style="background: var(--card); border-color: var(--border);">
+        <h3 class="font-semibold text-sm mb-3">Domain Scores</h3>
+        <div id="domainBars" class="space-y-2"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab: Gaps -->
+  <div id="tab-gaps" class="tab-content hidden">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3" id="gapCards"></div>
+  </div>
+
+  <!-- Tab: IMDF -->
+  <div id="tab-imdf" class="tab-content hidden">
+    <div class="rounded-xl p-4 border" style="background: var(--card); border-color: var(--border);">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-semibold">OGC IMDF 1.0 — 16 Feature Type Compliance</h3>
+        <span id="imdfScore" class="text-sm font-mono px-2 py-1 rounded" style="background: var(--border);"></span>
+      </div>
+      <div id="imdfGrid" class="grid grid-cols-1 md:grid-cols-2 gap-2"></div>
+    </div>
+  </div>
+
+  <!-- Tab: Timeline -->
+  <div id="tab-timeline" class="tab-content hidden">
+    <div class="space-y-3" id="phaseTimeline"></div>
+  </div>
+
+  <!-- Tab: Files -->
+  <div id="tab-files" class="tab-content hidden">
+    <div class="rounded-xl p-4 border overflow-x-auto" style="background: var(--card); border-color: var(--border);">
+      <h3 class="font-semibold mb-3">Current Codebase — 21 Files · 6,406 Lines</h3>
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left text-[var(--muted-foreground)]">
+            <th class="py-2 pr-4">File</th>
+            <th class="py-2 pr-4">Lines</th>
+            <th class="py-2 pr-4">Layer</th>
+            <th class="py-2">Status</th>
+          </tr>
+        </thead>
+        <tbody id="fileTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+<script>
+const isLight = document.documentElement.classList.contains('light');
+const fg = getComputedStyle(document.documentElement).getPropertyValue('--foreground').trim() || (isLight ? '#1a1a2e' : '#e8e8e8');
+const muted = getComputedStyle(document.documentElement).getPropertyValue('--muted-foreground').trim() || (isLight ? '#6b7280' : '#9ca3af');
+const primary = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim() || '#6366f1';
+const border = getComputedStyle(document.documentElement).getPropertyValue('--border').trim() || (isLight ? '#e5e7eb' : '#374151');
+
+// Domain data
+const domains = [
+  { name: 'PDR Calibration', current: 20, target: 95, severity: 'critical' },
+  { name: 'Heading / AHRS', current: 55, target: 90, severity: 'major' },
+  { name: 'IMDF Data Model', current: 15, target: 95, severity: 'critical' },
+  { name: 'Room Categories', current: 40, target: 90, severity: 'major' },
+  { name: 'Corridor Model', current: 15, target: 90, severity: 'critical' },
+  { name: 'Openings / Doors', current: 25, target: 85, severity: 'major' },
+  { name: 'Wi-Fi Scanning', current: 45, target: 85, severity: 'major' },
+  { name: 'Loop Closure', current: 65, target: 85, severity: 'adequate' },
+  { name: 'Export Formats', current: 10, target: 95, severity: 'critical' },
+  { name: 'Coverage Quality', current: 5, target: 90, severity: 'critical' },
+  { name: 'ADA Accessibility', current: 20, target: 85, severity: 'major' },
+  { name: 'Test Coverage', current: 5, target: 85, severity: 'critical' },
+];
+
+const gaps = [
+  { domain: 'PDR Calibration', severity: 'critical', current: 'Fixed 0.75m stride, no calibration', target: 'Weinberg K-factor per-user, 10m walk wizard', phase: 1 },
+  { domain: 'IMDF Data Model', severity: 'critical', current: '5 custom tables', target: '16 IMDF feature types, UUIDs, GeoJSON', phase: 2 },
+  { domain: 'Corridor Model', severity: 'critical', current: 'No width/slope/surface/passCount', target: 'Width, slope, surface, multi-pass centerline', phase: 2 },
+  { domain: 'Export Formats', severity: 'critical', current: 'Raw JSON dump only', target: 'IMDF ZIP, GeoJSON, SVG, IndoorGML', phase: 4 },
+  { domain: 'Coverage Quality', severity: 'critical', current: 'No metrics at all', target: 'Heatmaps, AP density, CEP50, ISO 18305', phase: 3 },
+  { domain: 'Test Coverage', severity: 'critical', current: '2 widget tests (<5%)', target: '>80% line coverage, algorithm tests', phase: 6 },
+  { domain: 'Heading / AHRS', severity: 'major', current: 'Complementary filter, Manhattan only', target: 'EKF/Madgwick AHRS, QSMF detection', phase: 1 },
+  { domain: 'Room Categories', severity: 'major', current: '11 categories', target: '27+ IMDF unit categories', phase: 2 },
+  { domain: 'Openings / Doors', severity: 'major', current: 'Door side only (L/R/S)', target: 'Door type, access control, width, threshold', phase: 2 },
+  { domain: 'Wi-Fi Scanning', severity: 'major', current: 'Single scan, no filtering', target: 'Gaussian RSSI, scan queue, BLE support', phase: 3 },
+  { domain: 'ADA Accessibility', severity: 'major', current: 'Boolean isAccessible only', target: 'Ramp slope, door width, surface, tactile', phase: 5 },
+  { domain: 'Barometric Floor', severity: 'major', current: 'Not implemented', target: 'Auto floor transition via pressure delta', phase: 1 },
+  { domain: 'Multi-Pass Avg', severity: 'major', current: 'Not implemented', target: 'Centerline snapping from multiple walks', phase: 3 },
+  { domain: 'Loop Closure', severity: 'adequate', current: 'Linear drift distribution', target: 'Pose-graph SLAM (future)', phase: 7 },
+  { domain: 'Building Azimuth', severity: 'minor', current: 'API exists, no UI', target: 'Compass rose calibration dialog', phase: 1 },
+  { domain: 'Architecture', severity: 'major', current: '1,969-line monolith screen', target: 'Modular dialogs, repository pattern', phase: 6 },
+];
+
+const phases = [
+  { num: 1, name: 'Calibration & Sensors', days: '3-4', score: 48, tasks: 4, lines: '~1,200', color: '#ef4444' },
+  { num: 2, name: 'IMDF Data Model', days: '4-5', score: 60, tasks: 5, lines: '~1,800', color: '#f97316' },
+  { num: 3, name: 'Quality & Multi-Pass', days: '3-4', score: 70, tasks: 5, lines: '~1,400', color: '#eab308' },
+  { num: 4, name: 'Export Pipeline', days: '4-5', score: 80, tasks: 5, lines: '~2,000', color: '#22c55e' },
+  { num: 5, name: 'ADA Compliance', days: '2', score: 85, tasks: 3, lines: '~800', color: '#06b6d4' },
+  { num: 6, name: 'Architecture & Testing', days: '3-4', score: 92, tasks: 4, lines: '~1,500', color: '#8b5cf6' },
+  { num: 7, name: 'Advanced Features', days: '2-3', score: 97, tasks: 5, lines: '~1,000', color: '#ec4899' },
+];
+
+const imdfFeatures = [
+  { type: 'venue', status: 'missing', desc: 'Top-level campus/facility boundary polygon' },
+  { type: 'building', status: 'partial', desc: 'Building metadata exists, no IMDF schema' },
+  { type: 'footprint', status: 'missing', desc: 'Ground-level building outline polygon' },
+  { type: 'level', status: 'partial', desc: 'Floor names exist, no ordinal/polygon' },
+  { type: 'unit', status: 'partial', desc: 'Rooms exist as points, not polygons' },
+  { type: 'opening', status: 'missing', desc: 'Doors recorded as side only, no model' },
+  { type: 'amenity', status: 'missing', desc: 'No POI/amenity model (fire ext, water, etc.)' },
+  { type: 'anchor', status: 'missing', desc: 'No spatial anchor for occupant placement' },
+  { type: 'occupant', status: 'partial', desc: 'FacultyMember model exists, not IMDF' },
+  { type: 'fixture', status: 'missing', desc: 'No permanent fixture model' },
+  { type: 'detail', status: 'missing', desc: 'No architectural detail lines' },
+  { type: 'geofence', status: 'missing', desc: 'No virtual boundary / trigger zones' },
+  { type: 'kiosk', status: 'missing', desc: 'No kiosk/service point model' },
+  { type: 'section', status: 'missing', desc: 'No logical grouping (wing, terminal)' },
+  { type: 'relationship', status: 'partial', desc: 'Vertical portal edges exist, not IMDF' },
+  { type: 'address', status: 'missing', desc: 'No postal/address record model' },
+];
+
+const files = [
+  { name: 'main.dart', lines: 75, layer: 'Entry', status: 'stable' },
+  { name: 'room_node.dart', lines: 102, layer: 'Model', status: 'needs-upgrade' },
+  { name: 'corridor_edge.dart', lines: 34, layer: 'Model', status: 'needs-upgrade' },
+  { name: 'wifi_fingerprint.dart', lines: 70, layer: 'Model', status: 'stable' },
+  { name: 'step_log_record.dart', lines: 93, layer: 'Model', status: 'stable' },
+  { name: 'faculty_member.dart', lines: 32, layer: 'Model', status: 'stable' },
+  { name: 'area_zone.dart', lines: 180, layer: 'Model', status: 'stable' },
+  { name: 'pdr_engine.dart', lines: 153, layer: 'Service', status: 'needs-upgrade' },
+  { name: 'compass_fusion_service.dart', lines: 126, layer: 'Service', status: 'minor-update' },
+  { name: 'wifi_scanner_service.dart', lines: 116, layer: 'Service', status: 'needs-upgrade' },
+  { name: 'slam_surveyor_engine.dart', lines: 1041, layer: 'Service', status: 'needs-upgrade' },
+  { name: 'geospatial_service.dart', lines: 197, layer: 'Service', status: 'minor-update' },
+  { name: 'db_service.dart', lines: 469, layer: 'Service', status: 'needs-upgrade' },
+  { name: 'loop_closure_optimizer.dart', lines: 95, layer: 'Service', status: 'stable' },
+  { name: 'surveyor_screen.dart', lines: 1969, layer: 'View', status: 'decompose' },
+  { name: 'surveyor_canvas.dart', lines: 553, layer: 'View', status: 'needs-upgrade' },
+  { name: 'thumb_action_bar.dart', lines: 327, layer: 'View', status: 'minor-update' },
+  { name: 'faculty_room_modal.dart', lines: 369, layer: 'View', status: 'minor-update' },
+  { name: 'portal_transfer_modal.dart', lines: 238, layer: 'View', status: 'stable' },
+  { name: 'wifi_telemetry_sheet.dart', lines: 97, layer: 'View', status: 'stable' },
+  { name: 'widget_test.dart', lines: 70, layer: 'Test', status: 'needs-upgrade' },
+];
+
+// Tab switching
+function showTab(tabId) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+  document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('active'); b.style.color = muted; });
+  document.getElementById('tab-' + tabId).classList.remove('hidden');
+  event.target.classList.add('active');
+  event.target.style.color = '';
+  if (tabId === 'radar') drawRadar();
+}
+
+// Animate score
+function animateScore() {
+  let current = 0;
+  const target = 38;
+  const interval = setInterval(() => {
+    current++;
+    document.getElementById('scoreDisplay').textContent = current;
+    document.getElementById('scoreBar').style.width = current + '%';
+    if (current >= target) clearInterval(interval);
+  }, 25);
+}
+
+// Draw radar chart
+function drawRadar() {
+  const canvas = document.getElementById('radarCanvas');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = 420 * dpr;
+  canvas.height = 420 * dpr;
+  canvas.style.width = '420px';
+  canvas.style.height = '420px';
+  ctx.scale(dpr, dpr);
+
+  const cx = 210, cy = 210, maxR = 170;
+  const n = domains.length;
+  const angleStep = (2 * Math.PI) / n;
+
+  // Grid rings
+  for (let ring = 1; ring <= 5; ring++) {
+    const r = (ring / 5) * maxR;
+    ctx.beginPath();
+    for (let i = 0; i <= n; i++) {
+      const angle = i * angleStep - Math.PI / 2;
+      const x = cx + r * Math.cos(angle);
+      const y = cy + r * Math.sin(angle);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = border || 'rgba(128,128,128,0.2)';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+
+  // Axes + labels
+  ctx.font = '10px system-ui, sans-serif';
+  ctx.fillStyle = muted || '#999';
+  ctx.textAlign = 'center';
+  for (let i = 0; i < n; i++) {
+    const angle = i * angleStep - Math.PI / 2;
+    const x1 = cx + maxR * Math.cos(angle);
+    const y1 = cy + maxR * Math.sin(angle);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(x1, y1);
+    ctx.strokeStyle = border || 'rgba(128,128,128,0.15)';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+
+    const lx = cx + (maxR + 22) * Math.cos(angle);
+    const ly = cy + (maxR + 22) * Math.sin(angle);
+    const words = domains[i].name.split(/[\/\s]+/);
+    words.forEach((w, wi) => {
+      ctx.fillText(w, lx, ly + wi * 11);
+    });
+  }
+
+  // Target polygon (green dashed)
+  ctx.beginPath();
+  ctx.setLineDash([4, 3]);
+  for (let i = 0; i <= n; i++) {
+    const idx = i % n;
+    const angle = idx * angleStep - Math.PI / 2;
+    const r = (domains[idx].target / 100) * maxR;
+    const x = cx + r * Math.cos(angle);
+    const y = cy + r * Math.sin(angle);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = '#22c55e';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Current polygon (red fill)
+  ctx.beginPath();
+  for (let i = 0; i <= n; i++) {
+    const idx = i % n;
+    const angle = idx * angleStep - Math.PI / 2;
+    const r = (domains[idx].current / 100) * maxR;
+    const x = cx + r * Math.cos(angle);
+    const y = cy + r * Math.sin(angle);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.fillStyle = 'rgba(239, 68, 68, 0.15)';
+  ctx.fill();
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Legend
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#ef4444';
+  ctx.fillRect(10, 395, 12, 3);
+  ctx.fillStyle = fg;
+  ctx.font = '10px system-ui';
+  ctx.textAlign = 'left';
+  ctx.fillText('Current (38/100)', 26, 400);
+
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  ctx.moveTo(140, 397);
+  ctx.lineTo(152, 397);
+  ctx.strokeStyle = '#22c55e';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillText('Target (97/100)', 158, 400);
+}
+
+// Domain bars
+function renderDomainBars() {
+  const container = document.getElementById('domainBars');
+  domains.forEach(d => {
+    const sevColor = d.severity === 'critical' ? '#ef4444' : d.severity === 'major' ? '#f97316' : d.severity === 'adequate' ? '#22c55e' : '#6366f1';
+    const sevLabel = d.severity === 'critical' ? 'CRITICAL' : d.severity === 'major' ? 'MAJOR' : d.severity === 'adequate' ? 'OK' : 'MINOR';
+    container.innerHTML += `
+      <div class="flex items-center gap-2">
+        <div class="w-28 text-xs truncate text-[var(--muted-foreground)]">${d.name}</div>
+        <div class="flex-1 h-2.5 rounded-full overflow-hidden" style="background: var(--border);">
+          <div class="h-full rounded-full" style="width: ${d.current}%; background: ${sevColor};"></div>
+        </div>
+        <div class="w-8 text-xs font-mono text-right">${d.current}%</div>
+        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded" style="background: ${sevColor}20; color: ${sevColor};">${sevLabel}</span>
+      </div>`;
+  });
+}
+
+// Gap cards
+function renderGapCards() {
+  const container = document.getElementById('gapCards');
+  gaps.forEach(g => {
+    const color = g.severity === 'critical' ? '#ef4444' : g.severity === 'major' ? '#f97316' : g.severity === 'adequate' ? '#22c55e' : '#6b7280';
+    const icon = g.severity === 'critical' ? '🔴' : g.severity === 'major' ? '🟡' : g.severity === 'adequate' ? '🟢' : '⚪';
+    container.innerHTML += `
+      <div class="phase-card rounded-lg p-3 border" style="background: var(--card); border-color: var(--border); border-left: 3px solid ${color};">
+        <div class="flex items-center justify-between mb-1">
+          <span class="font-semibold text-sm">${icon} ${g.domain}</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded font-mono" style="background: ${color}20; color: ${color};">Phase ${g.phase}</span>
+        </div>
+        <div class="text-xs text-[var(--muted-foreground)] mt-1"><b>Now:</b> ${g.current}</div>
+        <div class="text-xs mt-0.5" style="color: ${color};"><b>Target:</b> ${g.target}</div>
+      </div>`;
+  });
+}
+
+// IMDF checklist
+function renderIMDF() {
+  const container = document.getElementById('imdfGrid');
+  let supported = 0;
+  imdfFeatures.forEach(f => {
+    const icon = f.status === 'supported' ? '✅' : f.status === 'partial' ? '🟡' : '❌';
+    const color = f.status === 'supported' ? '#22c55e' : f.status === 'partial' ? '#f97316' : '#ef4444';
+    const label = f.status === 'supported' ? 'Supported' : f.status === 'partial' ? 'Partial' : 'Missing';
+    if (f.status === 'supported') supported++;
+    container.innerHTML += `
+      <div class="flex items-start gap-2 p-2 rounded-lg" style="background: ${color}08; border: 1px solid ${color}30;">
+        <span class="text-sm mt-0.5">${icon}</span>
+        <div class="flex-1">
+          <div class="font-mono text-sm font-semibold">${f.type}</div>
+          <div class="text-[var(--muted-foreground)] text-xs">${f.desc}</div>
+        </div>
+        <span class="text-[10px] px-1.5 py-0.5 rounded font-bold whitespace-nowrap" style="color: ${color};">${label}</span>
+      </div>`;
+  });
+  const partial = imdfFeatures.filter(f => f.status === 'partial').length;
+  document.getElementById('imdfScore').textContent = `${supported} supported · ${partial} partial · ${16 - supported - partial} missing`;
+}
+
+// Phase timeline
+function renderTimeline() {
+  const container = document.getElementById('phaseTimeline');
+  let prevScore = 38;
+  phases.forEach(p => {
+    const delta = p.score - prevScore;
+    container.innerHTML += `
+      <div class="phase-card flex items-stretch gap-3 rounded-xl p-4 border cursor-default" style="background: var(--card); border-color: var(--border); border-left: 4px solid ${p.color};">
+        <div class="flex flex-col items-center justify-center w-12">
+          <div class="text-2xl font-black" style="color: ${p.color};">${p.num}</div>
+          <div class="text-[10px] text-[var(--muted-foreground)]">Phase</div>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="font-semibold">${p.name}</div>
+          <div class="flex items-center gap-3 mt-1 text-xs text-[var(--muted-foreground)]">
+            <span>⏱ ${p.days} days</span>
+            <span>📋 ${p.tasks} tasks</span>
+            <span>📝 ${p.lines} lines</span>
+          </div>
+        </div>
+        <div class="flex flex-col items-end justify-center">
+          <div class="text-xl font-bold">${p.score}<span class="text-sm font-normal text-[var(--muted-foreground)]">/100</span></div>
+          <div class="text-xs font-mono" style="color: ${p.color};">+${delta} pts</div>
+        </div>
+      </div>`;
+    prevScore = p.score;
+  });
+
+  // Total summary
+  container.innerHTML += `
+    <div class="rounded-xl p-4 border-2 text-center" style="border-color: var(--primary); background: var(--card);">
+      <div class="text-sm text-[var(--muted-foreground)]">Total Upgrade Path</div>
+      <div class="text-3xl font-black mt-1"><span style="color: #ef4444;">38</span> → <span style="color: #22c55e;">97</span> / 100</div>
+      <div class="text-sm text-[var(--muted-foreground)] mt-1">42 tasks · ~9,700 new lines · 22-30 days</div>
+    </div>`;
+}
+
+// File table
+function renderFiles() {
+  const tbody = document.getElementById('fileTable');
+  files.forEach(f => {
+    const statusColor = f.status === 'stable' ? '#22c55e' : f.status === 'minor-update' ? '#06b6d4' : f.status === 'needs-upgrade' ? '#f97316' : '#ef4444';
+    const statusLabel = f.status === 'stable' ? '✓ Stable' : f.status === 'minor-update' ? '~ Minor' : f.status === 'needs-upgrade' ? '⬆ Upgrade' : '✂ Decompose';
+    const layerColor = f.layer === 'Model' ? '#8b5cf6' : f.layer === 'Service' ? '#06b6d4' : f.layer === 'View' ? '#f97316' : f.layer === 'Test' ? '#22c55e' : '#6b7280';
+    tbody.innerHTML += `
+      <tr class="border-t" style="border-color: var(--border);">
+        <td class="py-1.5 pr-4 font-mono text-xs">${f.name}</td>
+        <td class="py-1.5 pr-4 text-xs">${f.lines}</td>
+        <td class="py-1.5 pr-4"><span class="text-[10px] px-1.5 py-0.5 rounded font-bold" style="background: ${layerColor}18; color: ${layerColor};">${f.layer}</span></td>
+        <td class="py-1.5"><span class="text-[10px] font-bold" style="color: ${statusColor};">${statusLabel}</span></td>
+      </tr>`;
+  });
+}
+
+// Initialize
+setTimeout(() => {
+  animateScore();
+  drawRadar();
+  renderDomainBars();
+  renderGapCards();
+  renderIMDF();
+  renderTimeline();
+  renderFiles();
+}, 100);
+</script>
+</body>
+</html>

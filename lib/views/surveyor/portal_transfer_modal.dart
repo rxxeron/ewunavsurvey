@@ -45,6 +45,13 @@ class _PortalTransferModalState extends State<PortalTransferModal> {
   }
 
   @override
+  void dispose() {
+    _nameController.dispose();
+    _customFloorController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final otherFloors = widget.availableFloors.where((f) => f != widget.currentFloor).toList();
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/room_node.dart';
 import '../../models/faculty_member.dart';
+import 'dialogs/photo_attachment_widget.dart';
 
 class FacultyRoomModal extends StatefulWidget {
   final String doorSide;
@@ -40,11 +41,25 @@ class _FacultyRoomModalState extends State<FacultyRoomModal> {
   final _facEmailController = TextEditingController();
   final _facHoursController = TextEditingController();
   bool _showAddFaculty = false;
+  String? _roomPhotoPath;
 
   @override
   void initState() {
     super.initState();
     _selectedSide = widget.doorSide;
+  }
+
+  @override
+  void dispose() {
+    _roomNumberController.dispose();
+    _nameController.dispose();
+    _deptController.dispose();
+    _capacityController.dispose();
+    _facNameController.dispose();
+    _facDesignationController.dispose();
+    _facEmailController.dispose();
+    _facHoursController.dispose();
+    super.dispose();
   }
 
   void _addFacultyMember() {
@@ -219,6 +234,13 @@ class _FacultyRoomModalState extends State<FacultyRoomModal> {
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 14),
+
+              PhotoAttachmentWidget(
+                photoPath: _roomPhotoPath,
+                onPhotoChanged: (path) => setState(() => _roomPhotoPath = path),
+                label: '📸 Room Signage & Doorway Photo',
               ),
               const SizedBox(height: 16),
 

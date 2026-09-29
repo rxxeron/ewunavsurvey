@@ -19,6 +19,8 @@ class StepEvent {
 
 class PdrEngine {
   double strideLengthMeters = 0.75;
+  double _weinbergK = 0.42; // Dynamic K-factor
+  double get weinbergK => _weinbergK;
   int _stepCount = 0;
   double _totalDistanceMeters = 0.0;
 
@@ -43,7 +45,8 @@ class PdrEngine {
   bool _isHardwareActive = false;
   bool get isHardwareActive => _isHardwareActive;
 
-  PdrEngine({bool enableHardwareSensors = false}) {
+  PdrEngine({bool enableHardwareSensors = false, double initialK = 0.42}) {
+    _weinbergK = initialK;
     if (enableHardwareSensors && !kIsWeb) {
       startHardwareSensors();
     }
@@ -99,7 +102,7 @@ class PdrEngine {
         // Dynamic Weinberg Stride Length Estimation
         // L = K * (a_max - a_min)^(1/4)
         final double accelDiff = math.max(0.1, _lastPeakZ - _lastValleyZ);
-        final double estimatedStride = math.min(1.1, math.max(0.5, 0.42 * math.pow(accelDiff, 0.25)));
+        final double estimatedStride = math.min(1.1, math.max(0.5, _weinbergK * math.pow(accelDiff, 0.25)));
         final double stepLength = (strideLengthMeters > 0) ? strideLengthMeters : estimatedStride;
 
         _stepCount++;
@@ -148,5 +151,9 @@ class PdrEngine {
   void dispose() {
     _accelSub?.cancel();
     _stepController.close();
+  }
+
+  void updateKFactor(double newK) {
+    _weinbergK = newK;
   }
 }

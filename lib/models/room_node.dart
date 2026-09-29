@@ -1,17 +1,13 @@
 import 'faculty_member.dart';
 
 enum RoomCategory {
-  classroom,
-  lab,
-  facultyOffice,
-  adminOffice,
-  staircase,
-  elevator,
-  restroom,
-  amenity,
-  entrance,
-  corridorJunction,
-  deadEnd,
+  room, corridor, walkway, openSpace, elevator, escalator, 
+  stairs, ramp, restroom, restroomMale, restroomFemale,
+  serverRoom, parking, lobby, atrium, office, classroom,
+  laboratory, library, auditorium, cafeteria, prayerRoom,
+  storage, mechanical, electrical, utility, unspecified,
+  // Legacy mappings for backward compatibility
+  lab, facultyOffice, adminOffice, staircase, amenity, entrance, corridorJunction, deadEnd
 }
 
 class RoomNode {
@@ -87,7 +83,8 @@ class RoomNode {
     y: (json['y'] as num).toDouble(),
     doorSide: json['doorSide'] as String? ?? 'straight',
     studentCapacity: (json['studentCapacity'] as num?)?.toInt() ?? 40,
-    isAccessible: json['isAccessible'] as bool? ?? true,
+    isAccessible: json['isAccessible'] == null ? true
+        : (json['isAccessible'] is bool ? json['isAccessible'] as bool : json['isAccessible'] == 1),
     facultyMembers: (json['facultyMembers'] as List<dynamic>?)
             ?.map((f) => FacultyMember.fromJson(f as Map<String, dynamic>))
             .toList() ??

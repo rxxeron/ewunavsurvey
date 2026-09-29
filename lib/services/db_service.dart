@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
@@ -9,15 +10,21 @@ import '../models/wifi_fingerprint.dart';
 import '../models/step_log_record.dart';
 import '../models/faculty_member.dart';
 import '../models/area_zone.dart';
+import '../models/opening.dart';
 
 class DbService {
   static Database? _database;
+  static Completer<Database?>? _initCompleter;
 
   Future<Database?> get database async {
     if (_database != null) return _database;
     if (kIsWeb) return null; // Web fallback
-    _database = await _initDatabase();
-    return _database;
+    if (_initCompleter != null) return _initCompleter!.future;
+    _initCompleter = Completer<Database?>();
+    final db = await _initDatabase();
+    _database = db;
+    _initCompleter!.complete(db);
+    return db;
   }
 
   Future<Database?> _initDatabase() async {
@@ -26,7 +33,7 @@ class DbService {
       final path = join(documentsDirectory.path, 'ewunav_survey.db');
       return await openDatabase(
         path,
-        version: 2,
+        version: 3,
         onCreate: (db, version) async {
           await db.execute('''
             CREATE TABLE rooms (
@@ -57,7 +64,13 @@ class DbService {
               toId TEXT,
               distanceMeters REAL,
               type TEXT,
-              isAccessible INTEGER
+              isAccessible INTEGER,
+              widthMeters REAL,
+              runningSlopePercent REAL,
+              crossSlopePercent REAL,
+              surfaceType TEXT,
+              hasTactilePaving INTEGER DEFAULT 0,
+              passCount INTEGER DEFAULT 1
             )
           ''');
 
@@ -104,9 +117,77 @@ class DbService {
               wifiSignals TEXT
             )
           ''');
+
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS openings(
+              id TEXT PRIMARY KEY,
+              levelId TEXT,
+              unitIdA TEXT,
+              unitIdB TEXT,
+              doorType TEXT,
+              accessControl TEXT,
+              clearWidthMeters REAL,
+              thresholdHeightMm REAL,
+              isAccessible INTEGER,
+              isEmergencyExit INTEGER
+            )
+          ''');
+          
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS amenities(
+              id TEXT PRIMARY KEY,
+              levelId TEXT,
+              unitId TEXT,
+              category TEXT,
+              name TEXT,
+              x REAL,
+              y REAL,
+              isAccessible INTEGER
+            )
+          ''');
         },
         onUpgrade: (db, oldVersion, newVersion) async {
-          if (oldVersion < 2) {
+                if (oldVersion < 3) {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS openings(
+            id TEXT PRIMARY KEY,
+            levelId TEXT,
+            unitIdA TEXT,
+            unitIdB TEXT,
+            doorType TEXT,
+            accessControl TEXT,
+            clearWidthMeters REAL,
+            thresholdHeightMm REAL,
+            isAccessible INTEGER,
+            isEmergencyExit INTEGER
+          )
+        ''');
+        
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS amenities(
+            id TEXT PRIMARY KEY,
+            levelId TEXT,
+            unitId TEXT,
+            category TEXT,
+            name TEXT,
+            x REAL,
+            y REAL,
+            isAccessible INTEGER
+          )
+        ''');
+        
+        try {
+          await db.execute('ALTER TABLE edges ADD COLUMN widthMeters REAL');
+          await db.execute('ALTER TABLE edges ADD COLUMN runningSlopePercent REAL');
+          await db.execute('ALTER TABLE edges ADD COLUMN crossSlopePercent REAL');
+          await db.execute('ALTER TABLE edges ADD COLUMN surfaceType TEXT');
+          await db.execute('ALTER TABLE edges ADD COLUMN hasTactilePaving INTEGER DEFAULT 0');
+          await db.execute('ALTER TABLE edges ADD COLUMN passCount INTEGER DEFAULT 1');
+        } catch (e) {
+          debugPrint('DB edges migration notice: $e');
+        }
+      }
+      if (oldVersion < 2) {
             try {
               await db.execute('ALTER TABLE rooms ADD COLUMN latitude REAL');
               await db.execute('ALTER TABLE rooms ADD COLUMN longitude REAL');
@@ -119,6 +200,7 @@ class DbService {
               await db.execute('ALTER TABLE step_logs ADD COLUMN gpsAccuracyMeters REAL');
             } catch (e) {
               debugPrint('DB migration notice: $e');
+            }
 
             try {
               await db.execute('''
@@ -136,8 +218,6 @@ class DbService {
               ''');
             } catch (e) {
               debugPrint('DB zone migration notice: $e');
-            }
-
             }
           }
         },
@@ -184,13 +264,46 @@ class DbService {
   Future<void> saveEdge(CorridorEdge edge) async {
     final db = await database;
     if (db == null) return;
-    await db.insert('edges', {
-      'fromId': edge.fromId,
-      'toId': edge.toId,
-      'distanceMeters': edge.distanceMeters,
-      'type': edge.type,
-      'isAccessible': edge.isAccessible ? 1 : 0,
-    });
+    await db.insert(
+      'edges',
+      {
+        'fromId': edge.fromId,
+        'toId': edge.toId,
+        'distanceMeters': edge.distanceMeters,
+        'type': edge.type,
+        'isAccessible': edge.isAccessible ? 1 : 0,
+        'widthMeters': edge.widthMeters,
+        'runningSlopePercent': edge.runningSlopePercent,
+        'crossSlopePercent': edge.crossSlopePercent,
+        'surfaceType': edge.surfaceType,
+        'hasTactilePaving': edge.hasTactilePaving ? 1 : 0,
+        'passCount': edge.passCount,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> saveCorridorEdge(CorridorEdge edge) => saveEdge(edge);
+
+  Future<void> saveOpening(Opening opening) async {
+    final db = await database;
+    if (db == null) return;
+    await db.insert(
+      'openings',
+      {
+        'id': opening.id,
+        'levelId': opening.levelId,
+        'unitIdA': opening.unitIdA,
+        'unitIdB': opening.unitIdB,
+        'doorType': opening.doorType.name,
+        'accessControl': opening.accessControl.name,
+        'clearWidthMeters': opening.clearWidthMeters,
+        'thresholdHeightMm': opening.thresholdHeightMm,
+        'isAccessible': opening.isAccessible ? 1 : 0,
+        'isEmergencyExit': opening.isEmergencyExit ? 1 : 0,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<void> saveFingerprint(WiFiFingerprint fp) async {

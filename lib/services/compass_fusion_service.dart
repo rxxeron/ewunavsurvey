@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:sensors_plus/sensors_plus.dart';
+import '../models/heading_snap_mode.dart';
+export '../models/heading_snap_mode.dart';
 
 class CompassFusionService {
   double _currentHeadingDeg = 0.0;
@@ -104,12 +106,28 @@ class CompassFusionService {
     _headingController.add(_currentHeadingDeg);
   }
 
+  HeadingSnapMode snapMode = HeadingSnapMode.manhattan90;
+
+  /// Snaps any given angle according to current snapMode
+  double snapHeading(double rawDeg) {
+    return HeadingCalculator.snapHeading(rawDeg, snapMode, baselineDeg: _buildingBaselineDeg);
+  }
+
+  /// Calculates relative angle with respect to building baseline
+  double getRelativeHeading(double headingDeg) {
+    return HeadingCalculator.getRelativeHeading(headingDeg, _buildingBaselineDeg);
+  }
+
   /// Snaps current heading to the nearest orthogonal Manhattan corridor axis (0, 90, 180, 270)
   /// relative to the building's baseline orientation.
   double getSnappedOrthogonalHeading() {
-    final double relativeAngle = (_currentHeadingDeg - _buildingBaselineDeg + 360) % 360;
-    final int quadrant = (relativeAngle / 90.0).round() % 4;
-    return (_buildingBaselineDeg + quadrant * 90.0 + 360) % 360;
+    return snapHeading(_currentHeadingDeg);
+  }
+
+  double getSnappedDiagonalHeading() {
+    final relativeAngle = (_currentHeadingDeg - _buildingBaselineDeg + 360) % 360;
+    final octant = (relativeAngle / 45.0).round() % 8;
+    return (_buildingBaselineDeg + octant * 45.0 + 360) % 360;
   }
 
   double _angleDifference(double target, double current) {

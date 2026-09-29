@@ -3,7 +3,7 @@ import 'slam_surveyor_engine.dart';
 
 class LoopClosureOptimizer {
   /// Closes a loop between the current position and a target landmark or starting point.
-  /// Uses a Gauss-Newton / gradient distribution over the walked path segment.
+  /// Uses simple linear interpolation weight distribution to correct drift over the walked path segment.
   static bool optimizeLoop({
     required SlamSurveyorEngine engine,
     required double targetX,

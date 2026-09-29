@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../models/room_node.dart';
 import '../../models/area_zone.dart';
+import 'overlays/coverage_heatmap.dart';
 import '../../services/slam_surveyor_engine.dart';
 
 class SurveyorCanvas extends StatefulWidget {
@@ -21,6 +22,8 @@ class SurveyorCanvas extends StatefulWidget {
 class _SurveyorCanvasState extends State<SurveyorCanvas> {
   double _zoom = 1.0;
   Offset _pan = Offset.zero;
+  bool _showAccessibleOnly = false;
+  bool _showHeatmap = false;
 
   void _zoomIn() => setState(() => _zoom = (_zoom * 1.25).clamp(0.3, 3.5));
   void _zoomOut() => setState(() => _zoom = (_zoom / 1.25).clamp(0.3, 3.5));
@@ -159,6 +162,8 @@ class _SurveyorCanvasState extends State<SurveyorCanvas> {
                       engine: widget.engine,
                       zoom: _zoom,
                       pan: _pan,
+                      showAccessibleOnly: _showAccessibleOnly,
+                      showHeatmap: _showHeatmap,
                     ),
                   );
                 },
@@ -172,6 +177,24 @@ class _SurveyorCanvasState extends State<SurveyorCanvas> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  FloatingActionButton.small(
+                    heroTag: 'canvas_accessible_toggle',
+                    backgroundColor: _showAccessibleOnly ? const Color(0xFF64B5F6) : const Color(0xFF1E2235),
+                    foregroundColor: _showAccessibleOnly ? Colors.black : const Color(0xFF64B5F6),
+                    tooltip: _showAccessibleOnly ? 'Showing Accessible Routes Only' : 'Filter Accessible Routes',
+                    onPressed: () => setState(() => _showAccessibleOnly = !_showAccessibleOnly),
+                    child: const Icon(Icons.accessible, size: 18),
+                  ),
+                  const SizedBox(height: 8),
+                  FloatingActionButton.small(
+                    heroTag: 'canvas_heatmap_toggle',
+                    backgroundColor: _showHeatmap ? const Color(0xFFFFD54F) : const Color(0xFF1E2235),
+                    foregroundColor: _showHeatmap ? Colors.black : const Color(0xFFFFD54F),
+                    tooltip: _showHeatmap ? 'Hide Coverage Heatmap' : 'Show Coverage Heatmap',
+                    onPressed: () => setState(() => _showHeatmap = !_showHeatmap),
+                    child: const Icon(Icons.grid_on, size: 18),
+                  ),
+                  const SizedBox(height: 8),
                   FloatingActionButton.small(
                     heroTag: 'canvas_recenter',
                     backgroundColor: const Color(0xFF1E2235),
@@ -212,11 +235,15 @@ class _SurveyorPainter extends CustomPainter {
   final SlamSurveyorEngine engine;
   final double zoom;
   final Offset pan;
+  final bool showAccessibleOnly;
+  final bool showHeatmap;
 
   _SurveyorPainter({
     required this.engine,
     required this.zoom,
     required this.pan,
+    this.showAccessibleOnly = false,
+    this.showHeatmap = false,
   });
 
   @override
@@ -244,6 +271,10 @@ class _SurveyorPainter extends CustomPainter {
     final gridPaint = Paint()
       ..color = const Color(0xFF1A1D2E)
       ..strokeWidth = 1.0;
+
+    if (showHeatmap) {
+      CoverageHeatmapPainter(engine: engine).paint(canvas, size);
+    }
 
     const double gridSize = 40.0;
     const double worldBound = 2500.0;
@@ -377,23 +408,34 @@ class _SurveyorPainter extends CustomPainter {
 
     // 4. Draw Existing Graph Corridor Edges on this floor
     final roomMap = {for (var r in engine.rooms) r.id: r};
-    final edgePaint = Paint()
-      ..color = const Color(0x3364B5F6)
-      ..strokeWidth = 2.0 * engine.pixelsPerMeter
-      ..strokeCap = StrokeCap.round;
-    final edgeCenterline = Paint()
-      ..color = const Color(0xFF64B5F6)
-      ..strokeWidth = 3.0
-      ..strokeCap = StrokeCap.round;
 
     for (var edge in engine.edges) {
+      if (showAccessibleOnly && !edge.isAccessible) continue;
       final fromRoom = roomMap[edge.fromId];
       final toRoom = roomMap[edge.toId];
       if (fromRoom != null && toRoom != null && fromRoom.floor == engine.currentFloor && toRoom.floor == engine.currentFloor) {
         final p1 = Offset(fromRoom.x, fromRoom.y);
         final p2 = Offset(toRoom.x, toRoom.y);
+
+        final double width = (edge.widthMeters ?? 1.8) * engine.pixelsPerMeter;
+        final edgePaint = Paint()
+          ..color = edge.isAccessible ? const Color(0x3364B5F6) : const Color(0x33EF5350)
+          ..strokeWidth = width
+          ..strokeCap = StrokeCap.round;
+        final edgeCenterline = Paint()
+          ..color = edge.isAccessible ? const Color(0xFF64B5F6) : const Color(0xFFEF5350)
+          ..strokeWidth = 3.0
+          ..strokeCap = StrokeCap.round;
+
         canvas.drawLine(p1, p2, edgePaint);
         canvas.drawLine(p1, p2, edgeCenterline);
+
+        if (edge.hasTactilePaving) {
+          final tactilePaint = Paint()
+            ..color = const Color(0xFFFFD54F)
+            ..strokeWidth = 2.0;
+          canvas.drawLine(p1, p2, tactilePaint);
+        }
       }
     }
 
