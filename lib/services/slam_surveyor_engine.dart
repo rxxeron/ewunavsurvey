@@ -952,6 +952,37 @@ class SlamSurveyorEngine extends ChangeNotifier {
     return zone;
   }
 
+  /// Connect two existing nodes with a corridor bridge edge (e.g. bridging outer & inner rings)
+  CorridorEdge connectNodes({
+    required String fromId,
+    required String toId,
+    double? distanceMeters,
+  }) {
+    if (!hasActiveBuilding) {
+      throw StateError('No active building');
+    }
+    final survey = activeSurvey!;
+    double dist = distanceMeters ?? 2.5;
+
+    final r1 = survey.rooms.where((r) => r.id == fromId).firstOrNull;
+    final r2 = survey.rooms.where((r) => r.id == toId).firstOrNull;
+    if (r1 != null && r2 != null) {
+      final dx = r1.x - r2.x;
+      final dy = r1.y - r2.y;
+      dist = math.sqrt(dx * dx + dy * dy) / pixelsPerMeter;
+    }
+
+    final edge = CorridorEdge(
+      fromId: fromId,
+      toId: toId,
+      distanceMeters: dist > 0 ? dist : 2.5,
+      type: 'corridor_bridge',
+    );
+    survey.edges.add(edge);
+    notifyListeners();
+    return edge;
+  }
+
   void deleteZone(String zoneId) {
     if (!hasActiveBuilding) return;
     activeSurvey?.zones.removeWhere((z) => z.id == zoneId);

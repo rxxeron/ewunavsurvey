@@ -706,6 +706,7 @@ class _SurveyorScreenState extends State<SurveyorScreen> {
                             if (cat == ZoneCategory.cafeteria) nameCtrl.text = 'Campus Cafeteria';
                             if (cat == ZoneCategory.auditorium) nameCtrl.text = 'Main Auditorium';
                             if (cat == ZoneCategory.openSpace) nameCtrl.text = 'Open Plaza';
+                            if (cat == ZoneCategory.voidAtrium) nameCtrl.text = 'Central Atrium Void (No-Walk)';
                           });
                         }
                       },

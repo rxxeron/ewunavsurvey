@@ -8,6 +8,7 @@ enum ZoneCategory {
   cafeteria,
   auditorium,
   openSpace,
+  voidAtrium,
   custom;
 
   String get displayName {
@@ -26,6 +27,8 @@ enum ZoneCategory {
         return '🎭 Auditorium / Hall';
       case ZoneCategory.openSpace:
         return '🌿 Open Space';
+      case ZoneCategory.voidAtrium:
+        return '🚫 Atrium Void (No-Walk)';
       case ZoneCategory.custom:
         return '📦 Custom Zone';
     }
@@ -47,6 +50,8 @@ enum ZoneCategory {
         return 0x3326A69A; // translucent teal
       case ZoneCategory.openSpace:
         return 0x3381C784; // translucent light green
+      case ZoneCategory.voidAtrium:
+        return 0x26EF5350; // translucent crimson
       case ZoneCategory.custom:
         return 0x3378909C; // translucent blue-grey
     }
@@ -68,6 +73,8 @@ enum ZoneCategory {
         return 0xFF26A69A;
       case ZoneCategory.openSpace:
         return 0xFF81C784;
+      case ZoneCategory.voidAtrium:
+        return 0xFFEF5350;
       case ZoneCategory.custom:
         return 0xFF78909C;
     }

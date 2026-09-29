@@ -287,6 +287,25 @@ class _SurveyorPainter extends CustomPainter {
         ..style = PaintingStyle.fill;
       canvas.drawPath(zonePath, fillPaint);
 
+      // If void/atrium, draw diagonal architectural warning hatch lines
+      if (zone.category == ZoneCategory.voidAtrium) {
+        canvas.save();
+        canvas.clipPath(zonePath);
+        final bounds = zonePath.getBounds();
+        final hatchPaint = Paint()
+          ..color = const Color(0x55EF5350)
+          ..strokeWidth = 1.5;
+        const double spacing = 16.0;
+        for (double d = -bounds.height; d < bounds.width + bounds.height; d += spacing) {
+          canvas.drawLine(
+            Offset(bounds.left + d, bounds.top),
+            Offset(bounds.left + d + bounds.height, bounds.bottom),
+            hatchPaint,
+          );
+        }
+        canvas.restore();
+      }
+
       // Boundary stroke
       final strokePaint = Paint()
         ..color = Color(zone.category.defaultStrokeColorInt)
