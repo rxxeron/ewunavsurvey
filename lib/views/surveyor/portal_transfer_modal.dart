@@ -106,7 +106,7 @@ class _PortalTransferModalState extends State<PortalTransferModal> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _portalType,
+                initialValue: _portalType,
                 dropdownColor: const Color(0xFF1E2235),
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
@@ -135,7 +135,7 @@ class _PortalTransferModalState extends State<PortalTransferModal> {
 
               if (otherFloors.isNotEmpty && !_createNewFloor) ...[
                 DropdownButtonFormField<String>(
-                  value: _targetFloor,
+                  initialValue: _targetFloor,
                   dropdownColor: const Color(0xFF1E2235),
                   style: const TextStyle(color: Colors.white),
                   decoration: const InputDecoration(

@@ -23,7 +23,7 @@ class _ExportDialogState extends State<ExportDialog> {
       final file = await exportFunc(manager);
       if (file != null) {
         if (context.mounted) {
-          Share.shareXFiles([XFile(file.path)], text: 'EWUNav Survey Export');
+          SharePlus.instance.share(ShareParams(files: [XFile(file.path)], text: 'EWUNav Survey Export'));
           Navigator.of(context).pop();
         }
       } else {

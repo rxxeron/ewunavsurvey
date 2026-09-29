@@ -80,7 +80,7 @@ class ExportManager {
       String floor1 = '', floor2 = '';
 
       final fromParts = edge.fromId.split('_');
-      if (fromParts.length >= 4 && fromParts[0] == 'step') {
+      if (fromParts.length >= 4 && fromParts[0] == 'node') {
         floor1 = fromParts[1];
         x1 = double.tryParse(fromParts[2]);
         y1 = double.tryParse(fromParts[3]);
@@ -94,7 +94,7 @@ class ExportManager {
       }
 
       final toParts = edge.toId.split('_');
-      if (toParts.length >= 4 && toParts[0] == 'step') {
+      if (toParts.length >= 4 && toParts[0] == 'node') {
         floor2 = toParts[1];
         x2 = double.tryParse(toParts[2]);
         y2 = double.tryParse(toParts[3]);

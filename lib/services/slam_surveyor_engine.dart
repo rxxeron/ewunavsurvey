@@ -369,6 +369,9 @@ class SlamSurveyorEngine extends ChangeNotifier {
       type: 'corridor',
     ));
 
+    survey.currentX = nextX;
+    survey.currentY = nextY;
+
     _addTrackPointFor(survey);
 
     final geo = geospatialService.calculatePosition(
@@ -827,7 +830,7 @@ class SlamSurveyorEngine extends ChangeNotifier {
       final dy = current.y - p.y;
       final dist = math.sqrt(dx * dx + dy * dy);
 
-      if (dist <= 2.5 * pixelsPerMeter) {
+      if (dist <= 1.5 * pixelsPerMeter) {
         final subList = pts.sublist(i).map((pt) => ZonePoint(pt.x, pt.y)).toList();
         final area = AreaZone.calculateArea(subList, pixelsPerMeter);
         if (area >= 4.0) {
