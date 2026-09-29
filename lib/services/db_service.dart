@@ -8,6 +8,7 @@ import '../models/corridor_edge.dart';
 import '../models/wifi_fingerprint.dart';
 import '../models/step_log_record.dart';
 import '../models/faculty_member.dart';
+import '../models/area_zone.dart';
 
 class DbService {
   static Database? _database;
@@ -71,6 +72,20 @@ class DbService {
             )
           ''');
 
+          
+          await db.execute('''
+            CREATE TABLE area_zones (
+              id TEXT PRIMARY KEY,
+              floor TEXT,
+              name TEXT,
+              category TEXT,
+              points TEXT,
+              areaSqMeters REAL,
+              colorHex TEXT,
+              notes TEXT,
+              boundaryNodeIds TEXT
+            )
+          ''');
           await db.execute('''
             CREATE TABLE step_logs (
               stepIndex INTEGER PRIMARY KEY,
@@ -104,6 +119,25 @@ class DbService {
               await db.execute('ALTER TABLE step_logs ADD COLUMN gpsAccuracyMeters REAL');
             } catch (e) {
               debugPrint('DB migration notice: $e');
+
+            try {
+              await db.execute('''
+                CREATE TABLE IF NOT EXISTS area_zones (
+                  id TEXT PRIMARY KEY,
+                  floor TEXT,
+                  name TEXT,
+                  category TEXT,
+                  points TEXT,
+                  areaSqMeters REAL,
+                  colorHex TEXT,
+                  notes TEXT,
+                  boundaryNodeIds TEXT
+                )
+              ''');
+            } catch (e) {
+              debugPrint('DB zone migration notice: $e');
+            }
+
             }
           }
         },
@@ -225,6 +259,80 @@ class DbService {
     await db.delete('step_logs', where: 'stepIndex = ?', whereArgs: [stepIndex]);
   }
 
+  
+  Future<void> saveZone(AreaZone zone) async {
+    final db = await database;
+    if (db == null) return;
+    await db.insert(
+      'area_zones',
+      {
+        'id': zone.id,
+        'floor': zone.floor,
+        'name': zone.name,
+        'category': zone.category.name,
+        'points': jsonEncode(zone.points.map((p) => p.toJson()).toList()),
+        'areaSqMeters': zone.areaSqMeters,
+        'colorHex': zone.colorHex,
+        'notes': zone.notes,
+        'boundaryNodeIds': jsonEncode(zone.boundaryNodeIds),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> deleteZone(String id) async {
+    final db = await database;
+    if (db == null) return;
+    await db.delete('area_zones', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<List<AreaZone>> getZonesForFloor(String floor) async {
+    final db = await database;
+    if (db == null) return [];
+    final rows = await db.query('area_zones', where: 'floor = ?', whereArgs: [floor]);
+    return rows.map<AreaZone>((r) => _parseZoneRow(r)).toList();
+  }
+
+  Future<List<AreaZone>> getAllZones() async {
+    final db = await database;
+    if (db == null) return [];
+    final rows = await db.query('area_zones');
+    return rows.map<AreaZone>((r) => _parseZoneRow(r)).toList();
+  }
+
+  AreaZone _parseZoneRow(Map<String, dynamic> r) {
+    List<ZonePoint> points = [];
+    final pointsRaw = r['points'] as String?;
+    if (pointsRaw != null && pointsRaw.isNotEmpty) {
+      try {
+        final list = jsonDecode(pointsRaw) as List<dynamic>;
+        points = list.map((p) => ZonePoint.fromJson(p as Map<String, dynamic>)).toList();
+      } catch (_) {}
+    }
+    List<String> nodeIds = [];
+    final nodeIdsRaw = r['boundaryNodeIds'] as String?;
+    if (nodeIdsRaw != null && nodeIdsRaw.isNotEmpty) {
+      try {
+        final list = jsonDecode(nodeIdsRaw) as List<dynamic>;
+        nodeIds = list.map((e) => e.toString()).toList();
+      } catch (_) {}
+    }
+    return AreaZone(
+      id: r['id'] as String,
+      floor: r['floor'] as String,
+      name: r['name'] as String,
+      category: ZoneCategory.values.firstWhere(
+        (c) => c.name == (r['category'] as String?),
+        orElse: () => ZoneCategory.openSpace,
+      ),
+      points: points,
+      areaSqMeters: (r['areaSqMeters'] as num?)?.toDouble() ?? 0.0,
+      colorHex: r['colorHex'] as String?,
+      notes: r['notes'] as String?,
+      boundaryNodeIds: nodeIds,
+    );
+  }
+
   Future<void> clearAllSurveyData() async {
     final db = await database;
     if (db == null) return;
@@ -232,6 +340,7 @@ class DbService {
     await db.delete('edges');
     await db.delete('wifi_fingerprints');
     await db.delete('step_logs');
+    await db.delete('area_zones');
   }
 
   Future<void> deleteFloorData(String floor) async {
@@ -247,6 +356,7 @@ class DbService {
     }
     await db.delete('wifi_fingerprints', where: 'floor = ?', whereArgs: [floor]);
     await db.delete('step_logs', where: 'floor = ?', whereArgs: [floor]);
+    await db.delete('area_zones', where: 'floor = ?', whereArgs: [floor]);
   }
 
   Future<List<RoomNode>> getAllRooms() async {
@@ -351,6 +461,7 @@ class DbService {
       'totalSteps': steps.length,
       'steps': steps.map((s) => s.toJson()).toList(),
       'rawWifiFingerprints': fps,
+      'areaZones': (await getAllZones()).map((z) => z.toJson()).toList(),
     };
     return const JsonEncoder.withIndent('  ').convert(rawPayload);
   }

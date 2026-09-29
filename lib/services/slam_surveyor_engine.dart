@@ -4,6 +4,7 @@ import '../models/room_node.dart';
 import '../models/corridor_edge.dart';
 import '../models/wifi_fingerprint.dart';
 import '../models/step_log_record.dart';
+import '../models/area_zone.dart';
 import 'pdr_engine.dart';
 import 'compass_fusion_service.dart';
 import 'wifi_scanner_service.dart';
@@ -23,6 +24,21 @@ class SurveyCorridorPoint {
   });
 }
 
+
+class AreaLoopCandidate {
+  final List<ZonePoint> points;
+  final double areaSqMeters;
+  final int startIndex;
+  final int endIndex;
+
+  AreaLoopCandidate({
+    required this.points,
+    required this.areaSqMeters,
+    required this.startIndex,
+    required this.endIndex,
+  });
+}
+
 class BuildingSurveyData {
   final String name;
   final double lat;
@@ -39,6 +55,7 @@ class BuildingSurveyData {
   final List<CorridorEdge> edges;
   final List<WiFiFingerprint> fingerprints;
   final List<StepLogRecord> stepLogs;
+  final List<AreaZone> zones;
 
   BuildingSurveyData({
     required this.name,
@@ -57,7 +74,8 @@ class BuildingSurveyData {
         rooms = [],
         edges = [],
         fingerprints = [],
-        stepLogs = [];
+        stepLogs = [],
+        zones = [];
 }
 
 class SlamSurveyorEngine extends ChangeNotifier {
@@ -91,6 +109,10 @@ class SlamSurveyorEngine extends ChangeNotifier {
       }
     });
   }
+
+  
+  AreaLoopCandidate? pendingLoopCandidate;
+  List<AreaZone> get zones => activeSurvey?.zones ?? [];
 
   bool _isRecording = true;
   bool get isRecording => _isRecording;
@@ -435,6 +457,8 @@ class SlamSurveyorEngine extends ChangeNotifier {
       stepLog.wifiSignals.addAll(fp.accessPoints);
     });
 
+
+    _checkLoopCandidate(survey);
     notifyListeners();
   }
 
@@ -839,11 +863,108 @@ class SlamSurveyorEngine extends ChangeNotifier {
   }
 
   /// Reset survey state for the active building
+  
+  void _checkLoopCandidate(BuildingSurveyData survey) {
+    final pts = survey.floorTrackPoints[survey.currentFloor];
+    if (pts == null || pts.length < 8) return;
+    final current = pts.last;
+
+    // Check if current position is close to any point at least 6 steps ago
+    for (int i = 0; i < pts.length - 6; i++) {
+      final p = pts[i];
+      final dx = current.x - p.x;
+      final dy = current.y - p.y;
+      final dist = math.sqrt(dx * dx + dy * dy);
+
+      if (dist <= 2.5 * pixelsPerMeter) {
+        final subList = pts.sublist(i).map((pt) => ZonePoint(pt.x, pt.y)).toList();
+        final area = AreaZone.calculateArea(subList, pixelsPerMeter);
+        if (area >= 4.0) {
+          pendingLoopCandidate = AreaLoopCandidate(
+            points: subList,
+            areaSqMeters: area,
+            startIndex: i,
+            endIndex: pts.length - 1,
+          );
+          break;
+        }
+      }
+    }
+  }
+
+  /// Enclose detected loop into an AreaZone (Courtyard, Rooftop, Hallway, etc.)
+  AreaZone enclosePendingLoop({
+    required String name,
+    required ZoneCategory category,
+    String? notes,
+  }) {
+    if (!hasActiveBuilding || pendingLoopCandidate == null) {
+      throw StateError('No pending loop to enclose');
+    }
+    final survey = activeSurvey!;
+    final candidate = pendingLoopCandidate!;
+
+    final zone = AreaZone(
+      id: 'zone_${DateTime.now().millisecondsSinceEpoch}_${category.name}',
+      floor: survey.currentFloor,
+      name: name,
+      category: category,
+      points: List.from(candidate.points),
+      areaSqMeters: candidate.areaSqMeters,
+      notes: notes,
+    );
+
+    survey.zones.add(zone);
+    pendingLoopCandidate = null;
+    notifyListeners();
+    return zone;
+  }
+
+  void dismissPendingLoop() {
+    pendingLoopCandidate = null;
+    notifyListeners();
+  }
+
+  AreaZone createManualZone({
+    required String name,
+    required ZoneCategory category,
+    required List<ZonePoint> points,
+    String? notes,
+  }) {
+    if (!hasActiveBuilding) {
+      throw StateError('Cannot create zone without active building');
+    }
+    final survey = activeSurvey!;
+    final area = AreaZone.calculateArea(points, pixelsPerMeter);
+
+    final zone = AreaZone(
+      id: 'zone_${DateTime.now().millisecondsSinceEpoch}_${category.name}',
+      floor: survey.currentFloor,
+      name: name,
+      category: category,
+      points: points,
+      areaSqMeters: area,
+      notes: notes,
+    );
+
+    survey.zones.add(zone);
+    notifyListeners();
+    return zone;
+  }
+
+  void deleteZone(String zoneId) {
+    if (!hasActiveBuilding) return;
+    activeSurvey?.zones.removeWhere((z) => z.id == zoneId);
+    notifyListeners();
+  }
+
   void resetSurvey() {
     if (!hasActiveBuilding) return;
     final survey = activeSurvey!;
 
     survey.rooms.clear();
+    survey.zones.clear();
+    pendingLoopCandidate = null;
     survey.edges.clear();
     survey.fingerprints.clear();
     survey.stepLogs.clear();
@@ -875,6 +996,8 @@ class SlamSurveyorEngine extends ChangeNotifier {
       'buildingLng': survey.lng,
       'pixelsPerMeter': pixelsPerMeter,
       'floors': survey.floors,
+            'zonesCount': survey.zones.length,
+      'zones': survey.zones.map((z) => z.toJson()).toList(),
       'rooms': survey.rooms.map((r) => r.toJson()).toList(),
       'edges': survey.edges.map((e) => e.toJson()).toList(),
       'fingerprintsCount': survey.fingerprints.length,

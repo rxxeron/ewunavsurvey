@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/room_node.dart';
+import '../../models/area_zone.dart';
 import '../../services/slam_surveyor_engine.dart';
 import '../../services/loop_closure_optimizer.dart';
 import '../../services/db_service.dart';
@@ -39,6 +40,15 @@ class _SurveyorScreenState extends State<SurveyorScreen> {
     if (widget.engine.stepLogs.isNotEmpty) {
       widget.dbService.saveStepLog(widget.engine.stepLogs.first);
     }
+
+    // Load persisted area zones for the active floor
+    widget.dbService.getZonesForFloor(widget.engine.currentFloor).then((savedZones) {
+      if (widget.engine.hasActiveBuilding && widget.engine.zones.isEmpty) {
+        widget.engine.zones.addAll(savedZones);
+        if (mounted) setState(() {});
+      }
+    });
+
   }
 
   void _openAddBuildingDialog() {
@@ -538,6 +548,243 @@ class _SurveyorScreenState extends State<SurveyorScreen> {
     );
   }
 
+  
+  Widget _buildLoopCandidateBanner() {
+    final cand = widget.engine.pendingLoopCandidate;
+    if (cand == null) return const SizedBox.shrink();
+
+    return Positioned(
+      top: 60,
+      left: 12,
+      right: 12,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xEE1E2235),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFFFFD54F), width: 1.5),
+          boxShadow: const [
+            BoxShadow(color: Color(0x44FFD54F), blurRadius: 8, spreadRadius: 1),
+          ],
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.all_inclusive, color: Color(0xFFFFD54F), size: 22),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Closed Loop Detected!',
+                    style: TextStyle(color: Color(0xFFFFD54F), fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                  Text(
+                    'Enclose as Courtyard, Rooftop, or Hallway (${cand.areaSqMeters.toStringAsFixed(0)} m²)',
+                    style: const TextStyle(color: Colors.white70, fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFFD54F),
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                visualDensity: VisualDensity.compact,
+              ),
+              onPressed: _openEncloseZoneDialog,
+              child: const Text('Enclose Area', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+            ),
+            const SizedBox(width: 4),
+            IconButton(
+              icon: const Icon(Icons.close, color: Colors.white54, size: 18),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              onPressed: () => setState(() => widget.engine.dismissPendingLoop()),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openEncloseZoneDialog() {
+    if (!widget.engine.hasActiveBuilding) return;
+
+    final candidate = widget.engine.pendingLoopCandidate;
+    final trackPoints = widget.engine.floorTrackPoints[widget.engine.currentFloor] ?? [];
+
+    List<ZonePoint> zonePoints = [];
+    double area = 0.0;
+
+    if (candidate != null && candidate.points.length >= 3) {
+      zonePoints = candidate.points;
+      area = candidate.areaSqMeters;
+    } else if (trackPoints.length >= 3) {
+      zonePoints = trackPoints.map((p) => ZonePoint(p.x, p.y)).toList();
+      area = AreaZone.calculateArea(zonePoints, widget.engine.pixelsPerMeter);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Need at least 3 points/steps to enclose an area!')),
+      );
+      return;
+    }
+
+    ZoneCategory selectedCategory = ZoneCategory.courtyard;
+    final nameCtrl = TextEditingController(text: 'Central Courtyard');
+    final noteCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF1E2235),
+          title: Row(
+            children: const [
+              Icon(Icons.landscape, color: Color(0xFF81C784), size: 22),
+              SizedBox(width: 8),
+              Text('Enclose Space / Area', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF141624),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('CALCULATED AREA', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 2),
+                          Text('${area.toStringAsFixed(1)} m²', style: const TextStyle(color: Color(0xFF81C784), fontSize: 18, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          const Text('PERIMETER POINTS', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 2),
+                          Text('${zonePoints.length} vertices', style: const TextStyle(color: Color(0xFF64B5F6), fontSize: 14, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text('Select Space / Zone Type:', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: ZoneCategory.values.map((cat) {
+                    final isSel = (cat == selectedCategory);
+                    return ChoiceChip(
+                      label: Text(cat.displayName, style: TextStyle(color: isSel ? Colors.black : Colors.white70, fontSize: 11)),
+                      selected: isSel,
+                      selectedColor: const Color(0xFF81C784),
+                      backgroundColor: const Color(0xFF141624),
+                      onSelected: (val) {
+                        if (val) {
+                          setDialogState(() {
+                            selectedCategory = cat;
+                            if (cat == ZoneCategory.courtyard) nameCtrl.text = 'Central Courtyard';
+                            if (cat == ZoneCategory.rooftop) nameCtrl.text = 'Rooftop Terrace';
+                            if (cat == ZoneCategory.hallway) nameCtrl.text = 'Main Hallway';
+                            if (cat == ZoneCategory.lobby) nameCtrl.text = 'Reception Lobby';
+                            if (cat == ZoneCategory.cafeteria) nameCtrl.text = 'Campus Cafeteria';
+                            if (cat == ZoneCategory.auditorium) nameCtrl.text = 'Main Auditorium';
+                            if (cat == ZoneCategory.openSpace) nameCtrl.text = 'Open Plaza';
+                          });
+                        }
+                      },
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: nameCtrl,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  decoration: const InputDecoration(
+                    labelText: 'Zone Name',
+                    labelStyle: TextStyle(color: Colors.white60, fontSize: 12),
+                    enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                    focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF81C784))),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: noteCtrl,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  decoration: const InputDecoration(
+                    labelText: 'Field Notes (optional)',
+                    labelStyle: TextStyle(color: Colors.white60, fontSize: 12),
+                    enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                    focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF81C784))),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                widget.engine.dismissPendingLoop();
+                Navigator.pop(ctx);
+              },
+              child: const Text('Dismiss', style: TextStyle(color: Colors.white60)),
+            ),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF81C784)),
+              icon: const Icon(Icons.check, size: 16, color: Colors.black),
+              label: const Text('Save Zone', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+              onPressed: () {
+                final name = nameCtrl.text.trim().isNotEmpty ? nameCtrl.text.trim() : selectedCategory.displayName;
+                AreaZone zone;
+                if (widget.engine.pendingLoopCandidate != null) {
+                  zone = widget.engine.enclosePendingLoop(
+                    name: name,
+                    category: selectedCategory,
+                    notes: noteCtrl.text.trim().isNotEmpty ? noteCtrl.text.trim() : null,
+                  );
+                } else {
+                  zone = widget.engine.createManualZone(
+                    name: name,
+                    category: selectedCategory,
+                    points: zonePoints,
+                    notes: noteCtrl.text.trim().isNotEmpty ? noteCtrl.text.trim() : null,
+                  );
+                }
+                widget.dbService.saveZone(zone);
+                Navigator.pop(ctx);
+                setState(() {});
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: const Color(0xFF1B4D2E),
+                    content: Text('Saved "${zone.name}" (${zone.areaSqMeters.toStringAsFixed(1)} m²)'),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _openCompleteFloorDialog() {
     if (!widget.engine.hasActiveBuilding) return;
 
@@ -775,6 +1022,41 @@ class _SurveyorScreenState extends State<SurveyorScreen> {
                                 style: TextStyle(color: Colors.white54, fontSize: 11),
                               ),
                               const SizedBox(height: 12),
+                                                            Text('Area Zones & Courtyards (${widget.engine.zones.length})',
+                                  style: const TextStyle(color: Color(0xFFFFD54F), fontWeight: FontWeight.bold, fontSize: 13)),
+                              const Divider(color: Colors.white12),
+                              if (widget.engine.zones.isEmpty)
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 8),
+                                  child: Text('No area zones enclosed yet.', style: TextStyle(color: Colors.white38, fontSize: 12)),
+                                )
+                              else
+                                ...widget.engine.zones.map((z) => Container(
+                                      margin: const EdgeInsets.symmetric(vertical: 3),
+                                      decoration: BoxDecoration(color: const Color(0xFF1A1D2E), borderRadius: BorderRadius.circular(6)),
+                                      child: ListTile(
+                                        dense: true,
+                                        leading: const Icon(Icons.crop_square, color: Color(0xFFFFD54F), size: 18),
+                                        title: Text('${z.name} (${z.category.displayName})',
+                                            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                                        subtitle: Text('${z.floor} • Area: ${z.areaSqMeters.toStringAsFixed(1)} m² • ${z.points.length} vertices',
+                                            style: const TextStyle(color: Colors.white60, fontSize: 11)),
+                                        trailing: IconButton(
+                                          icon: const Icon(Icons.delete, color: Colors.redAccent, size: 18),
+                                          tooltip: 'Delete this zone',
+                                          onPressed: () {
+                                            widget.engine.deleteZone(z.id);
+                                            widget.dbService.deleteZone(z.id);
+                                            setSheetState(() {});
+                                            setState(() {});
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text('Deleted zone "${z.name}"')),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    )),
+                              const SizedBox(height: 16),
                               Text('Tagged Rooms (${widget.engine.rooms.length})',
                                   style: const TextStyle(color: Color(0xFF64B5F6), fontWeight: FontWeight.bold, fontSize: 13)),
                               const Divider(color: Colors.white12),
@@ -894,6 +1176,7 @@ class _SurveyorScreenState extends State<SurveyorScreen> {
             children: [
               Text('Building: ${widget.engine.currentBuilding}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               Text('Rooms Tagged: ${widget.engine.rooms.length}', style: const TextStyle(color: Colors.white70)),
+              Text('Area Zones Enclosed: ${widget.engine.zones.length}', style: const TextStyle(color: Colors.white70)),
               Text('Corridor Edges: ${widget.engine.edges.length}', style: const TextStyle(color: Colors.white70)),
               Text('Wi-Fi Fingerprints: ${widget.engine.fingerprints.length}', style: const TextStyle(color: Colors.white70)),
               Text('Step Logs Recorded: ${widget.engine.stepLogs.length}', style: const TextStyle(color: Colors.white70)),
@@ -1259,6 +1542,7 @@ class _SurveyorScreenState extends State<SurveyorScreen> {
                               onRoomDeleted: (room) => widget.dbService.deleteRoom(room.id),
                             ),
                             _buildHud(latestStep),
+                            _buildLoopCandidateBanner(),
                           ],
                         ),
                       ),
@@ -1612,6 +1896,7 @@ class _SurveyorScreenState extends State<SurveyorScreen> {
                         onRoomDeleted: (room) => widget.dbService.deleteRoom(room.id),
                       ),
                       _buildHud(latestStep),
+                      _buildLoopCandidateBanner(),
                     ],
                   ),
           ),
@@ -1623,6 +1908,7 @@ class _SurveyorScreenState extends State<SurveyorScreen> {
               onToggleRecording: () => setState(() => widget.engine.toggleRecording()),
               onCompleteFloor: _openCompleteFloorDialog,
               onMarkDeadEnd: _openDeadEndDialog,
+              onEncloseZone: _openEncloseZoneDialog,
               onDoorLeft: () => _openRoomModal('left'),
               onDoorRight: () => _openRoomModal('right'),
               onTurnLeft: () => widget.engine.turn(-90),

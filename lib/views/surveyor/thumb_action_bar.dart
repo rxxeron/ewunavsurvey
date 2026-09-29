@@ -6,6 +6,7 @@ class ThumbActionBar extends StatelessWidget {
   final VoidCallback onToggleRecording;
   final VoidCallback onCompleteFloor;
   final VoidCallback onMarkDeadEnd;
+  final VoidCallback? onEncloseZone;
   final VoidCallback onDoorLeft;
   final VoidCallback onDoorRight;
   final VoidCallback onTurnLeft;
@@ -24,6 +25,7 @@ class ThumbActionBar extends StatelessWidget {
     required this.onToggleRecording,
     required this.onCompleteFloor,
     required this.onMarkDeadEnd,
+    this.onEncloseZone,
     required this.onDoorLeft,
     required this.onDoorRight,
     required this.onTurnLeft,
@@ -258,6 +260,21 @@ class ThumbActionBar extends StatelessWidget {
                   },
                 ),
               ),
+              if (onEncloseZone != null)
+                Expanded(
+                  child: TextButton.icon(
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFF81C784),
+                      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+                    ),
+                    icon: const Icon(Icons.landscape, size: 14),
+                    label: const Text('Area', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      onEncloseZone!();
+                    },
+                  ),
+                ),
               Expanded(
                 child: TextButton.icon(
                   style: TextButton.styleFrom(

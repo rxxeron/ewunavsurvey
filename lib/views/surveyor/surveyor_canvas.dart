@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../models/room_node.dart';
+import '../../models/area_zone.dart';
 import '../../services/slam_surveyor_engine.dart';
 
 class SurveyorCanvas extends StatefulWidget {
@@ -266,6 +267,94 @@ class _SurveyorPainter extends CustomPainter {
     );
     final originPainter = TextPainter(text: originSpan, textDirection: TextDirection.ltr)..layout();
     originPainter.paint(canvas, Offset(engine.originX + 14, engine.originY - 6));
+
+
+    // 3.5 Draw Enclosed Area Zones (Courtyards, Rooftops, Hallways)
+    final zonesOnFloor = engine.zones.where((z) => z.floor == engine.currentFloor).toList();
+    for (var zone in zonesOnFloor) {
+      if (zone.points.length < 3) continue;
+
+      final zonePath = Path();
+      zonePath.moveTo(zone.points.first.x, zone.points.first.y);
+      for (int i = 1; i < zone.points.length; i++) {
+        zonePath.lineTo(zone.points[i].x, zone.points[i].y);
+      }
+      zonePath.close();
+
+      // Translucent fill
+      final fillPaint = Paint()
+        ..color = Color(zone.category.defaultFillColorInt)
+        ..style = PaintingStyle.fill;
+      canvas.drawPath(zonePath, fillPaint);
+
+      // Boundary stroke
+      final strokePaint = Paint()
+        ..color = Color(zone.category.defaultStrokeColorInt)
+        ..strokeWidth = (zone.category == ZoneCategory.hallway) ? 3.0 : 2.0
+        ..style = PaintingStyle.stroke;
+      canvas.drawPath(zonePath, strokePaint);
+
+      // Centroid Badge
+      final centroid = zone.centroid;
+      final areaBadgeSpan = TextSpan(
+        text: '${zone.category.displayName}\n${zone.name} (${zone.areaSqMeters.toStringAsFixed(1)} m²)',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          height: 1.2,
+        ),
+      );
+      final badgePainter = TextPainter(
+        text: areaBadgeSpan,
+        textAlign: TextAlign.center,
+        textDirection: TextDirection.ltr,
+      )..layout();
+
+      final badgeRect = Rect.fromCenter(
+        center: Offset(centroid.x, centroid.y),
+        width: badgePainter.width + 16,
+        height: badgePainter.height + 10,
+      );
+      final badgeBgPaint = Paint()
+        ..color = const Color(0xDD141624)
+        ..style = PaintingStyle.fill;
+      final badgeBorderPaint = Paint()
+        ..color = Color(zone.category.defaultStrokeColorInt)
+        ..strokeWidth = 1.0
+        ..style = PaintingStyle.stroke;
+
+      canvas.drawRRect(RRect.fromRectAndRadius(badgeRect, const Radius.circular(6)), badgeBgPaint);
+      canvas.drawRRect(RRect.fromRectAndRadius(badgeRect, const Radius.circular(6)), badgeBorderPaint);
+      badgePainter.paint(
+        canvas,
+        Offset(centroid.x - badgePainter.width / 2, centroid.y - badgePainter.height / 2),
+      );
+    }
+
+    // Draw Candidate Loop if detected
+    if (engine.pendingLoopCandidate != null) {
+      final cand = engine.pendingLoopCandidate!;
+      if (cand.points.length >= 3) {
+        final candPath = Path();
+        candPath.moveTo(cand.points.first.x, cand.points.first.y);
+        for (int i = 1; i < cand.points.length; i++) {
+          candPath.lineTo(cand.points[i].x, cand.points[i].y);
+        }
+        candPath.close();
+
+        final candFill = Paint()
+          ..color = const Color(0x33FFD54F)
+          ..style = PaintingStyle.fill;
+        canvas.drawPath(candPath, candFill);
+
+        final candStroke = Paint()
+          ..color = const Color(0xFFFFD54F)
+          ..strokeWidth = 2.5
+          ..style = PaintingStyle.stroke;
+        canvas.drawPath(candPath, candStroke);
+      }
+    }
 
     // 4. Draw Existing Graph Corridor Edges on this floor
     final roomMap = {for (var r in engine.rooms) r.id: r};
