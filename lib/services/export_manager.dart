@@ -57,6 +57,16 @@ class ExportManager {
     };
     archive.addFile(ArchiveFile('level.geojson', utf8.encode(jsonEncode(levelCollection)).length, utf8.encode(jsonEncode(levelCollection))));
 
+    // 3. Wi-Fi & BLE Telemetry Fingerprints (Custom Extension)
+    final telemetryData = {
+      "survey_id": survey.id,
+      "building_name": survey.name,
+      "total_scans": survey.fingerprints.length,
+      "wifi_fingerprints": survey.fingerprints.map((fp) => fp.toJson()).toList(),
+      "step_telemetry": survey.stepLogs.map((log) => log.toJson()).toList(),
+    };
+    archive.addFile(ArchiveFile('telemetry_fingerprints.json', utf8.encode(jsonEncode(telemetryData)).length, utf8.encode(jsonEncode(telemetryData))));
+
     // Compress to Zip
     final zipEncoder = ZipEncoder();
     final List<int>? encodedZip = zipEncoder.encode(archive);
