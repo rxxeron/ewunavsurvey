@@ -116,5 +116,46 @@ void main() {
       expect(restoredLab.category, RoomCategory.laboratory);
       expect(restoredLab.name, 'Hardware Lab');
     });
+
+    test('Push, slide, and glass door mechanisms serialize accurately with door materials', () {
+      final glassDoor = Opening(
+        id: 'door_glass_slide',
+        levelId: 'level_3',
+        unitIdA: 'room_lab_301',
+        unitIdB: 'corridor_3',
+        doorType: DoorType.slideGlass,
+        doorMaterial: DoorMaterial.glass,
+        accessControl: AccessControl.open,
+        clearWidthMeters: 1.2,
+      );
+
+      final json = glassDoor.toJson();
+      final restored = Opening.fromJson(json);
+
+      expect(restored.doorType, DoorType.slideGlass);
+      expect(restored.doorMaterial, DoorMaterial.glass);
+      expect(restored.clearWidthMeters, 1.2);
+
+      final facultyRoom = RoomNode(
+        id: 'faculty_401',
+        name: 'Prof. Office 401',
+        floor: '4th Floor',
+        category: RoomCategory.facultyOffice,
+        x: 350.0,
+        y: 220.0,
+        doorType: 'pushGlass',
+        doorMaterial: 'glass',
+      );
+
+      expect(facultyRoom.doorType, 'pushGlass');
+      expect(facultyRoom.doorMaterial, 'glass');
+      expect(facultyRoom.isGlassDoor, isTrue);
+      expect(facultyRoom.isSlidingDoor, isFalse);
+
+      final restoredRoom = RoomNode.fromJson(facultyRoom.toJson());
+      expect(restoredRoom.doorType, 'pushGlass');
+      expect(restoredRoom.doorMaterial, 'glass');
+      expect(restoredRoom.isGlassDoor, isTrue);
+    });
   });
 }

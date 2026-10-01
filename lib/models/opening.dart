@@ -1,4 +1,5 @@
-enum DoorType { hinged, sliding, revolving, folding, automatic, open, none }
+enum DoorType { hinged, sliding, revolving, folding, automatic, pushGlass, slideGlass, open, none }
+enum DoorMaterial { glass, wood, metal, composite, none }
 enum AccessControl { open, keyCard, keyPad, biometric, manual, none }
 
 class Opening {
@@ -7,6 +8,7 @@ class Opening {
   final String unitIdA;
   final String unitIdB;
   final DoorType doorType;
+  final DoorMaterial doorMaterial;
   final AccessControl accessControl;
   final double? clearWidthMeters;
   final double? thresholdHeightMm;
@@ -20,6 +22,7 @@ class Opening {
     required this.unitIdA,
     required this.unitIdB,
     this.doorType = DoorType.hinged,
+    this.doorMaterial = DoorMaterial.wood,
     this.accessControl = AccessControl.open,
     this.clearWidthMeters,
     this.thresholdHeightMm,
@@ -34,6 +37,7 @@ class Opening {
     'unitIdA': unitIdA,
     'unitIdB': unitIdB,
     'doorType': doorType.name,
+    'doorMaterial': doorMaterial.name,
     'accessControl': accessControl.name,
     'clearWidthMeters': clearWidthMeters,
     'thresholdHeightMm': thresholdHeightMm,
@@ -48,6 +52,7 @@ class Opening {
     unitIdA: json['unitIdA'] as String,
     unitIdB: json['unitIdB'] as String,
     doorType: DoorType.values.firstWhere((e) => e.name == json['doorType'], orElse: () => DoorType.hinged),
+    doorMaterial: DoorMaterial.values.firstWhere((e) => e.name == json['doorMaterial'], orElse: () => DoorMaterial.wood),
     accessControl: AccessControl.values.firstWhere((e) => e.name == json['accessControl'], orElse: () => AccessControl.open),
     clearWidthMeters: (json['clearWidthMeters'] as num?)?.toDouble(),
     thresholdHeightMm: (json['thresholdHeightMm'] as num?)?.toDouble(),

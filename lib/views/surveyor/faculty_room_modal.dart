@@ -16,6 +16,10 @@ class FacultyRoomModal extends StatefulWidget {
     double doorWidth,
     double thresholdHeight,
     String? photoPath,
+    String? customCategoryName,
+    int facultyCount,
+    String doorType,
+    String doorMaterial,
   ) onSave;
 
   const FacultyRoomModal({
@@ -31,11 +35,15 @@ class FacultyRoomModal extends StatefulWidget {
 class _FacultyRoomModalState extends State<FacultyRoomModal> {
   final _roomNumberController = TextEditingController();
   final _nameController = TextEditingController();
-  final _deptController = TextEditingController(text: 'CSE');
+  final _deptController = TextEditingController(); // No default department!
+  final _customTypeController = TextEditingController();
   final _capacityController = TextEditingController(text: '40');
 
   RoomCategory _selectedCategory = RoomCategory.classroom;
   late String _selectedSide;
+  String _doorType = 'push';
+  String _doorMaterial = 'wood';
+  int _facultyCount = 1;
   final List<FacultyMember> _facultyList = [];
 
   // Faculty entry controllers
@@ -60,6 +68,7 @@ class _FacultyRoomModalState extends State<FacultyRoomModal> {
     _roomNumberController.dispose();
     _nameController.dispose();
     _deptController.dispose();
+    _customTypeController.dispose();
     _capacityController.dispose();
     _facNameController.dispose();
     _facDesignationController.dispose();
@@ -76,7 +85,7 @@ class _FacultyRoomModalState extends State<FacultyRoomModal> {
       _facultyList.add(FacultyMember(
         name: _facNameController.text.trim(),
         designation: _facDesignationController.text.trim(),
-        department: _deptController.text.trim(),
+        department: _deptController.text.trim().isNotEmpty ? _deptController.text.trim() : 'General',
         email: _facEmailController.text.trim().isNotEmpty ? _facEmailController.text.trim() : null,
         counselingHours: _facHoursController.text.trim().isNotEmpty ? _facHoursController.text.trim() : null,
       ));
@@ -84,16 +93,22 @@ class _FacultyRoomModalState extends State<FacultyRoomModal> {
       _facEmailController.clear();
       _facHoursController.clear();
       _showAddFaculty = false;
+      if (_facultyList.length > _facultyCount) {
+        _facultyCount = _facultyList.length;
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final bool isFacultyOffice = (_selectedCategory == RoomCategory.facultyOffice);
+    final bool isCustomCategory = (_selectedCategory == RoomCategory.custom);
+
     return Dialog(
       backgroundColor: const Color(0xFF1E2235),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 460, maxHeight: 620),
+        constraints: const BoxConstraints(maxWidth: 460, maxHeight: 660),
         padding: const EdgeInsets.all(20),
         child: SingleChildScrollView(
           child: Column(
@@ -141,7 +156,7 @@ class _FacultyRoomModalState extends State<FacultyRoomModal> {
                       style: const TextStyle(color: Colors.white),
                       decoration: const InputDecoration(
                         labelText: 'Room Name / Description',
-                        hintText: 'e.g. Language Lab, Chair Office',
+                        hintText: 'e.g. Language Lab, Exam Hall',
                         labelStyle: TextStyle(color: Colors.white70),
                         filled: true,
                         fillColor: Color(0xFF141624),
@@ -169,12 +184,13 @@ class _FacultyRoomModalState extends State<FacultyRoomModal> {
                         border: OutlineInputBorder(),
                       ),
                       items: const [
-                        DropdownMenuItem(value: RoomCategory.classroom, child: Text('Classroom')),
+                        DropdownMenuItem(value: RoomCategory.classroom, child: Text('Classroom (Shared)')),
                         DropdownMenuItem(value: RoomCategory.lab, child: Text('Computer/Science Lab')),
-                        DropdownMenuItem(value: RoomCategory.facultyOffice, child: Text('Faculty Office')),
-                        DropdownMenuItem(value: RoomCategory.adminOffice, child: Text('Admin Office (Accounts, Reg)')),
-                        DropdownMenuItem(value: RoomCategory.restroom, child: Text('Restroom')),
+                        DropdownMenuItem(value: RoomCategory.facultyOffice, child: Text('Faculty/Staff Office')),
+                        DropdownMenuItem(value: RoomCategory.adminOffice, child: Text('Admin (Accounts, Reg)')),
+                        DropdownMenuItem(value: RoomCategory.restroom, child: Text('Restroom / Washroom')),
                         DropdownMenuItem(value: RoomCategory.amenity, child: Text('Cafeteria / Library')),
+                        DropdownMenuItem(value: RoomCategory.custom, child: Text('✨ Custom Landmark / Other')),
                       ],
                       onChanged: (cat) {
                         if (cat != null) setState(() => _selectedCategory = cat);
@@ -208,31 +224,34 @@ class _FacultyRoomModalState extends State<FacultyRoomModal> {
               ),
               const SizedBox(height: 12),
 
-              // Department & Capacity
+              // Custom Landmark Name (shown only if Custom is selected)
+              if (isCustomCategory) ...[
+                TextField(
+                  controller: _customTypeController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Custom Landmark / Room Type',
+                    hintText: 'e.g. Prayer Room, Server Room, Generator, Store Room, Club Room',
+                    labelStyle: TextStyle(color: Color(0xFFFFD54F)),
+                    filled: true,
+                    fillColor: Color(0xFF242214),
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.edit_location_alt, color: Color(0xFFFFD54F), size: 18),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              // Capacity & (Optional) Department only if Faculty Office
               Row(
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _deptController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: const InputDecoration(
-                        labelText: 'Department',
-                        hintText: 'CSE, EEE, BBA, English',
-                        labelStyle: TextStyle(color: Colors.white70),
-                        filled: true,
-                        fillColor: Color(0xFF141624),
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
                   Expanded(
                     child: TextField(
                       controller: _capacityController,
                       keyboardType: TextInputType.number,
                       style: const TextStyle(color: Colors.white),
                       decoration: const InputDecoration(
-                        labelText: 'Student Capacity',
+                        labelText: 'Capacity (Seats)',
                         hintText: '40',
                         labelStyle: TextStyle(color: Colors.white70),
                         filled: true,
@@ -241,6 +260,40 @@ class _FacultyRoomModalState extends State<FacultyRoomModal> {
                       ),
                     ),
                   ),
+                  if (isFacultyOffice) ...[
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _deptController,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: const InputDecoration(
+                          labelText: 'Department (Optional)',
+                          hintText: 'e.g. CSE, EEE, BBA',
+                          labelStyle: TextStyle(color: Colors.white70),
+                          filled: true,
+                          fillColor: Color(0xFF141624),
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Door Mechanism & Glass Option
+              const Text('Door Type & Glass Option:', style: TextStyle(color: Color(0xFF64B5F6), fontSize: 12, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  _buildDoorChip('push', 'wood', '🚪 Push / Swing', 'Standard hinged push door'),
+                  _buildDoorChip('push_glass', 'glass', '🪟 Push Glass', 'Push/swing clear glass door'),
+                  _buildDoorChip('slide', 'wood', '↔️ Slide Door', 'Sliding door'),
+                  _buildDoorChip('slide_glass', 'glass', '🪟↔️ Slide Glass', 'Sliding glass door (common in labs/faculty)'),
+                  _buildDoorChip('automatic_glass', 'glass', '⚡ Auto Glass', 'Automatic sliding glass door'),
+                  _buildDoorChip('push', 'metal', '🚪 Metal / Heavy', 'Heavy metal/security door'),
                 ],
               ),
               const SizedBox(height: 12),
@@ -290,37 +343,99 @@ class _FacultyRoomModalState extends State<FacultyRoomModal> {
               ),
               const SizedBox(height: 16),
 
-              // Faculty Members Section
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    '👨‍🏫 Faculty Occupants (${_facultyList.length})',
-                    style: const TextStyle(color: Color(0xFFFFD54F), fontWeight: FontWeight.bold, fontSize: 13),
+              // Faculty Occupancy Section (Shown for Faculty Offices)
+              if (isFacultyOffice) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF191B2B),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFFFD54F).withValues(alpha: 0.3)),
                   ),
-                  TextButton.icon(
-                    icon: Icon(_showAddFaculty ? Icons.remove : Icons.add, color: const Color(0xFF81C784), size: 16),
-                    label: Text(_showAddFaculty ? 'Cancel' : 'Add Faculty', style: const TextStyle(color: Color(0xFF81C784))),
-                    onPressed: () => setState(() => _showAddFaculty = !_showAddFaculty),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '👨‍🏫 Faculty Occupancy',
+                                style: TextStyle(color: Color(0xFFFFD54F), fontWeight: FontWeight.bold, fontSize: 13),
+                              ),
+                              Text(
+                                'How many faculty occupy this room?',
+                                style: TextStyle(color: Colors.white54, fontSize: 11),
+                              ),
+                            ],
+                          ),
+                          // Stepper: [-] Count [+]
+                          Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2C324A),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.remove, size: 16, color: Colors.white),
+                                  onPressed: () {
+                                    if (_facultyCount > 1) {
+                                      setState(() => _facultyCount--);
+                                    }
+                                  },
+                                ),
+                                Text(
+                                  '$_facultyCount',
+                                  style: const TextStyle(color: Color(0xFFFFD54F), fontWeight: FontWeight.bold, fontSize: 14),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.add, size: 16, color: Colors.white),
+                                  onPressed: () {
+                                    setState(() => _facultyCount++);
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Detailed Profiles (${_facultyList.length})',
+                            style: const TextStyle(color: Colors.white70, fontSize: 11),
+                          ),
+                          TextButton.icon(
+                            icon: Icon(_showAddFaculty ? Icons.close : Icons.person_add, color: const Color(0xFF81C784), size: 15),
+                            label: Text(_showAddFaculty ? 'Cancel' : 'Add Teacher Details', style: const TextStyle(color: Color(0xFF81C784), fontSize: 11)),
+                            onPressed: () => setState(() => _showAddFaculty = !_showAddFaculty),
+                          ),
+                        ],
+                      ),
+                      if (_facultyList.isNotEmpty)
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: _facultyList.map((f) => Chip(
+                            backgroundColor: const Color(0xFF2C324A),
+                            label: Text('${f.name} (${f.designation})', style: const TextStyle(color: Colors.white, fontSize: 11)),
+                            onDeleted: () => setState(() => _facultyList.remove(f)),
+                            deleteIconColor: Colors.redAccent,
+                          )).toList(),
+                        ),
+                    ],
                   ),
-                ],
-              ),
-
-              // Faculty members list tags
-              if (_facultyList.isNotEmpty)
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: _facultyList.map((f) => Chip(
-                    backgroundColor: const Color(0xFF2C324A),
-                    label: Text('${f.name} (${f.designation})', style: const TextStyle(color: Colors.white, fontSize: 11)),
-                    onDeleted: () => setState(() => _facultyList.remove(f)),
-                    deleteIconColor: Colors.redAccent,
-                  )).toList(),
                 ),
+                const SizedBox(height: 12),
+              ],
 
               // Add Faculty Inline Form
-              if (_showAddFaculty) ...[
+              if (_showAddFaculty && isFacultyOffice) ...[
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -406,9 +521,12 @@ class _FacultyRoomModalState extends State<FacultyRoomModal> {
                       ),
                       onPressed: () {
                         final roomNum = _roomNumberController.text.trim();
+                        final customTypeName = _customTypeController.text.trim();
                         final name = _nameController.text.trim().isNotEmpty
                             ? _nameController.text.trim()
-                            : (roomNum.isNotEmpty ? 'Room $roomNum' : 'Room');
+                            : (customTypeName.isNotEmpty
+                                ? customTypeName
+                                : (roomNum.isNotEmpty ? 'Room $roomNum' : 'Room'));
                         final cap = int.tryParse(_capacityController.text.trim()) ?? 40;
                         final dWidth = double.tryParse(_doorWidthCtrl.text.trim()) ?? 0.90;
                         final tHeight = double.tryParse(_thresholdHeightCtrl.text.trim()) ?? 6.0;
@@ -417,13 +535,17 @@ class _FacultyRoomModalState extends State<FacultyRoomModal> {
                           name,
                           roomNum,
                           _selectedCategory,
-                          _deptController.text.trim(),
+                          _deptController.text.trim().isNotEmpty ? _deptController.text.trim() : 'General',
                           _selectedSide,
                           cap,
                           _facultyList,
                           dWidth,
                           tHeight,
                           _roomPhotoPath,
+                          customTypeName.isNotEmpty ? customTypeName : null,
+                          _facultyCount,
+                          _doorType,
+                          _doorMaterial,
                         );
                         Navigator.pop(context);
                       },
@@ -435,6 +557,34 @@ class _FacultyRoomModalState extends State<FacultyRoomModal> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildDoorChip(String type, String material, String label, String tooltip) {
+    final isSelected = (_doorType == type && _doorMaterial == material);
+    return Tooltip(
+      message: tooltip,
+      child: ChoiceChip(
+        label: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.black : Colors.white,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            fontSize: 11,
+          ),
+        ),
+        selected: isSelected,
+        selectedColor: material == 'glass' ? const Color(0xFF4FC3F7) : const Color(0xFF81C784),
+        backgroundColor: const Color(0xFF141624),
+        onSelected: (val) {
+          if (val) {
+            setState(() {
+              _doorType = type;
+              _doorMaterial = material;
+            });
+          }
+        },
       ),
     );
   }

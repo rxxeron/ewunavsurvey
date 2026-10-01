@@ -23,6 +23,10 @@ import 'dialogs/azimuth_alignment_dialog.dart';
 import 'dialogs/stride_calibration_dialog.dart';
 import 'dialogs/corridor_properties_dialog.dart';
 import 'dialogs/door_properties_dialog.dart';
+import 'dialogs/washroom_modal.dart';
+import 'dialogs/manage_rooms_dialog.dart';
+import 'dialogs/clean_floor_dialog.dart';
+import 'building_3d_viewer.dart';
 import '../../models/opening.dart';
 
 import '../../repositories/survey_repository.dart';
@@ -44,9 +48,15 @@ class SurveyorScreen extends StatefulWidget {
 }
 
 class _SurveyorScreenState extends State<SurveyorScreen> {
+  void _onEngineUpdate() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
+
+    widget.engine.addListener(_onEngineUpdate);
 
     // Auto-save every recorded step into SQLite database
     widget.engine.onStepRecorded = (record) {
@@ -59,6 +69,12 @@ class _SurveyorScreenState extends State<SurveyorScreen> {
     }
 
     _bootSequence();
+  }
+
+  @override
+  void dispose() {
+    widget.engine.removeListener(_onEngineUpdate);
+    super.dispose();
   }
 
   Future<void> _bootSequence() async {
@@ -135,25 +151,34 @@ class _SurveyorScreenState extends State<SurveyorScreen> {
       context: context,
       builder: (context) => FacultyRoomModal(
         doorSide: doorSide,
-        onSave: (name, roomNum, cat, dept, side, cap, faculty, dWidth, tHeight, photoPath) {
+        onSave: (name, roomNum, cat, dept, side, cap, faculty, dWidth, tHeight, photoPath, customCategoryName, facultyCount, doorType, doorMaterial) {
           final room = widget.engine.markRoomDoor(
             name: name,
             roomNumber: roomNum,
             category: cat,
             department: dept,
+            customCategoryName: customCategoryName,
+            facultyCount: facultyCount,
             doorSide: side,
+            doorType: doorType,
+            doorMaterial: doorMaterial,
             capacity: cap,
             faculty: faculty,
           );
           room.facultyMembers = faculty;
-          room.photoPath = photoPath; // Set photoPath directly on room for now
+          room.photoPath = photoPath;
           
-          // Synthesize an Opening for ADA graph?
+          final opType = doorType.contains('slide')
+              ? (doorMaterial == 'glass' || doorType.contains('glass') ? DoorType.slideGlass : DoorType.sliding)
+              : (doorMaterial == 'glass' || doorType.contains('glass') ? DoorType.pushGlass : DoorType.hinged);
+
           final opening = Opening(
             id: 'op_${DateTime.now().millisecondsSinceEpoch}',
             levelId: widget.engine.currentFloor,
-            unitIdA: 'corridor_${room.id}', // Fake for now if not known, or what does markRoomDoor do?
+            unitIdA: 'corridor_${room.id}',
             unitIdB: room.id,
+            doorType: opType,
+            doorMaterial: (doorMaterial == 'glass' || doorType.contains('glass')) ? DoorMaterial.glass : DoorMaterial.wood,
             clearWidthMeters: dWidth,
             thresholdHeightMm: tHeight,
             photoPath: photoPath,
@@ -166,6 +191,59 @@ class _SurveyorScreenState extends State<SurveyorScreen> {
         },
       ),
     );
+  }
+
+  void _openWashroomModal([String side = 'left']) {
+    if (!widget.engine.hasActiveBuilding) return;
+
+    WashroomModal.show(
+      context,
+      defaultSide: side,
+      onSave: (name, category, doorSide, isAccessible) {
+        final room = widget.engine.markRoomDoor(
+          name: name,
+          roomNumber: name,
+          category: category,
+          department: 'General',
+          doorSide: doorSide,
+          capacity: 1,
+        );
+        room.isAccessible = isAccessible;
+        widget.dbService.saveRoom(room);
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF1C442E),
+            content: Text('Tagged $name on $doorSide of corridor.'),
+          ),
+        );
+      },
+    );
+  }
+
+  void _openManageRoomsDialog() {
+    if (!widget.engine.hasActiveBuilding) return;
+    ManageRoomsDialog.show(
+      context,
+      engine: widget.engine,
+      dbService: widget.dbService,
+      onRoomModified: () => setState(() {}),
+    );
+  }
+
+  void _openCleanFloorDialog() {
+    if (!widget.engine.hasActiveBuilding) return;
+    CleanFloorDialog.show(
+      context,
+      engine: widget.engine,
+      dbService: widget.dbService,
+      onCleared: () => setState(() {}),
+    );
+  }
+
+  void _open3DViewer() {
+    if (!widget.engine.hasActiveBuilding) return;
+    Building3DViewer.show(context, engine: widget.engine);
   }
 
   void _openPortalModal(String portalType) {
@@ -181,18 +259,23 @@ class _SurveyorScreenState extends State<SurveyorScreen> {
         currentX: widget.engine.currentX,
         currentY: widget.engine.currentY,
         currentElevation: elevation,
-        onTagOnly: (name, type) {
-          final room = widget.engine.tagVerticalPortalLandmark(name: name, portalType: type);
+        onTagOnly: (name, type, liftCount) {
+          final room = widget.engine.tagVerticalPortalLandmark(
+            name: name,
+            portalType: type,
+            liftCount: liftCount,
+          );
           widget.dbService.saveRoom(room);
           setState(() {});
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               backgroundColor: const Color(0xFF1C442E),
-              content: Text('Tagged $name at (${room.x.round()}, ${room.y.round()}) with elevation ${elevation.toStringAsFixed(1)}m'),
+              content: Text('Tagged $name ($liftCount ${type == 'lift' ? 'lifts' : 'stairs'}) with elevation ${elevation.toStringAsFixed(1)}m'),
             ),
           );
         },
-        onTransfer: (name, type, targetFloor) {
+        onTransfer: (name, type, targetFloor, liftCount) {
+          final fromFloor = widget.engine.currentFloor;
           widget.engine.enterVerticalPortal(name: name, portalType: type);
           widget.engine.exitVerticalPortal(targetFloor: targetFloor);
           final targetElev = widget.engine.geospatialService.getFloorHeightMeters(targetFloor);
@@ -201,6 +284,19 @@ class _SurveyorScreenState extends State<SurveyorScreen> {
             SnackBar(
               backgroundColor: const Color(0xFF1C442E),
               content: Text('Climbed $name to $targetFloor (Elev: ${targetElev.toStringAsFixed(1)}m). 3D linked!'),
+              action: SnackBarAction(
+                label: 'View 3D Ascent',
+                textColor: const Color(0xFF64B5F6),
+                onPressed: () {
+                  Building3DViewer.show(
+                    context,
+                    engine: widget.engine,
+                    autoAscend: true,
+                    fromFloor: fromFloor,
+                    toFloor: targetFloor,
+                  );
+                },
+              ),
             ),
           );
         },
@@ -365,6 +461,41 @@ class _SurveyorScreenState extends State<SurveyorScreen> {
     );
   }
 
+  void _pauseAndSaveSession() {
+    if (widget.engine.isRecording) {
+      widget.engine.pauseRecording();
+    }
+    widget.repository.backupActiveSurveyToDb();
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: const Color(0xFF1B3D2B),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Color(0xFF81C784)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('💾 Session Paused & Saved to Database!',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                  Text(
+                    '${widget.engine.currentFloor}: ${widget.engine.stepLogs.length} steps, ${widget.engine.rooms.length} rooms preserved.',
+                    style: const TextStyle(color: Colors.white70, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // 1. First Boot Blank Screen: User must create their first building
@@ -498,6 +629,11 @@ class _SurveyorScreenState extends State<SurveyorScreen> {
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.view_in_ar, color: Color(0xFFBA68C8)),
+            tooltip: '3D Building Viewer',
+            onPressed: _open3DViewer,
+          ),
+          IconButton(
             icon: const Icon(Icons.comment_outlined, color: Color(0xFFFFD54F)),
             tooltip: 'Add Comment to Step',
             onPressed: _openCommentDialog,
@@ -517,6 +653,9 @@ class _SurveyorScreenState extends State<SurveyorScreen> {
             color: const Color(0xFF1E2235),
             tooltip: 'More Actions',
             onSelected: (val) {
+              if (val == '3d') _open3DViewer();
+              if (val == 'manage_rooms') _openManageRoomsDialog();
+              if (val == 'clean_floor') _openCleanFloorDialog();
               if (val == 'schema') _openSchemaViewer();
               if (val == 'wifi') _openWiFiTelemetry();
               if (val == 'loop') _attemptLoopClosure();
@@ -529,6 +668,37 @@ class _SurveyorScreenState extends State<SurveyorScreen> {
               if (val == 'reset') _resetSurvey();
             },
             itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: '3d',
+                child: Row(
+                  children: [
+                    Icon(Icons.view_in_ar, color: Color(0xFFBA68C8), size: 18),
+                    SizedBox(width: 8),
+                    Text('3D Building Viewer', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'manage_rooms',
+                child: Row(
+                  children: [
+                    Icon(Icons.meeting_room, color: Color(0xFF4FC3F7), size: 18),
+                    SizedBox(width: 8),
+                    Text('Manage / Delete Rooms', style: TextStyle(color: Colors.white, fontSize: 13)),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'clean_floor',
+                child: Row(
+                  children: [
+                    Icon(Icons.cleaning_services, color: Color(0xFFFFB74D), size: 18),
+                    SizedBox(width: 8),
+                    Text('Clean Floor Data...', style: TextStyle(color: Colors.white, fontSize: 13)),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
               const PopupMenuItem(
                 value: 'schema',
                 child: Row(
@@ -671,9 +841,13 @@ class _SurveyorScreenState extends State<SurveyorScreen> {
                         engine: widget.engine,
                         dbService: widget.dbService,
                         onToggleRecording: () => setState(() => widget.engine.toggleRecording()),
+                        onPauseAndSave: _pauseAndSaveSession,
                         onCompleteFloor: _openCompleteFloorDialog,
                         onOpenRoomModal: _openRoomModal,
                         onOpenPortalModal: _openPortalModal,
+                        onOpenWashroom: () => _openWashroomModal('left'),
+                        onManageRooms: _openManageRoomsDialog,
+                        onOpen3D: _open3DViewer,
                         onDeadEnd: _openDeadEndDialog,
                         onAddComment: _openCommentDialog,
                         onStepModified: () => setState(() {}),
@@ -703,6 +877,7 @@ class _SurveyorScreenState extends State<SurveyorScreen> {
             ThumbActionBar(
               isRecording: widget.engine.isRecording,
               onToggleRecording: () => setState(() => widget.engine.toggleRecording()),
+              onPauseAndSave: _pauseAndSaveSession,
               onCompleteFloor: _openCompleteFloorDialog,
               onMarkDeadEnd: _openDeadEndDialog,
               onEncloseZone: _openEncloseZoneDialog,
@@ -714,6 +889,9 @@ class _SurveyorScreenState extends State<SurveyorScreen> {
               onManualStep: () => widget.engine.manualStep(0.75),
               onMarkStair: () => _openPortalModal('stair'),
               onMarkLift: () => _openPortalModal('lift'),
+              onMarkWashroom: () => _openWashroomModal('left'),
+              onManageRooms: _openManageRoomsDialog,
+              onOpen3D: _open3DViewer,
               onAddComment: _openCommentDialog,
               onUTurn: () => widget.engine.turn(180),
               onUndo: () {

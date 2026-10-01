@@ -46,6 +46,7 @@ class DoorPropertiesDialog extends StatefulWidget {
 
 class _DoorPropertiesDialogState extends State<DoorPropertiesDialog> {
   DoorType _doorType = DoorType.hinged;
+  DoorMaterial _doorMaterial = DoorMaterial.wood;
   AccessControl _accessControl = AccessControl.open;
   final _widthCtrl = TextEditingController(text: '0.90'); // 90cm default (ADA min 0.815m)
   final _thresholdCtrl = TextEditingController(text: '6.0'); // 6mm default (ADA max 13mm)
@@ -119,15 +120,42 @@ class _DoorPropertiesDialogState extends State<DoorPropertiesDialog> {
             const SizedBox(height: 6),
             Wrap(
               spacing: 6,
-              children: DoorType.values.map((t) {
-                final isSel = t == _doorType;
+              runSpacing: 6,
+              children: [
+                _buildDoorTypeChip(DoorType.hinged, '🚪 PUSH / HINGED'),
+                _buildDoorTypeChip(DoorType.pushGlass, '🪟 PUSH GLASS'),
+                _buildDoorTypeChip(DoorType.sliding, '↔️ SLIDE'),
+                _buildDoorTypeChip(DoorType.slideGlass, '🪟↔️ SLIDE GLASS'),
+                _buildDoorTypeChip(DoorType.automatic, '⚡ AUTO GLASS'),
+                _buildDoorTypeChip(DoorType.revolving, '🔄 REVOLVING'),
+                _buildDoorTypeChip(DoorType.folding, '🪗 FOLDING'),
+                _buildDoorTypeChip(DoorType.open, '🔲 OPEN ARCH'),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Door Material
+            const Text('Door Material:', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              children: DoorMaterial.values.where((m) => m != DoorMaterial.none).map((m) {
+                final isSel = m == _doorMaterial;
+                String label;
+                switch (m) {
+                  case DoorMaterial.glass: label = '🪟 Clear Glass'; break;
+                  case DoorMaterial.wood: label = '🪵 Wood / Timber'; break;
+                  case DoorMaterial.metal: label = '🛡️ Steel / Metal'; break;
+                  case DoorMaterial.composite: label = '🧱 Composite / Solid'; break;
+                  default: label = m.name;
+                }
                 return ChoiceChip(
-                  label: Text(t.name.toUpperCase(), style: TextStyle(color: isSel ? Colors.black : Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
+                  label: Text(label, style: TextStyle(color: isSel ? Colors.black : Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
                   selected: isSel,
-                  selectedColor: const Color(0xFF81C784),
+                  selectedColor: const Color(0xFF4FC3F7),
                   backgroundColor: const Color(0xFF141624),
                   onSelected: (val) {
-                    if (val) setState(() => _doorType = t);
+                    if (val) setState(() => _doorMaterial = m);
                   },
                 );
               }).toList(),
@@ -236,6 +264,7 @@ class _DoorPropertiesDialogState extends State<DoorPropertiesDialog> {
               unitIdA: widget.unitId ?? 'corridor_active',
               unitIdB: widget.unitId ?? 'room_active',
               doorType: _doorType,
+              doorMaterial: _doorMaterial,
               accessControl: _accessControl,
               clearWidthMeters: w,
               thresholdHeightMm: th,
@@ -257,6 +286,34 @@ class _DoorPropertiesDialogState extends State<DoorPropertiesDialog> {
           child: const Text('Save Door Audit', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
         ),
       ],
+    );
+  }
+
+  Widget _buildDoorTypeChip(DoorType type, String label) {
+    final isSel = (type == _doorType);
+    final isGlass = (type == DoorType.pushGlass || type == DoorType.slideGlass || type == DoorType.automatic);
+    return ChoiceChip(
+      label: Text(
+        label,
+        style: TextStyle(
+          color: isSel ? Colors.black : Colors.white70,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      selected: isSel,
+      selectedColor: isGlass ? const Color(0xFF4FC3F7) : const Color(0xFF81C784),
+      backgroundColor: const Color(0xFF141624),
+      onSelected: (val) {
+        if (val) {
+          setState(() {
+            _doorType = type;
+            if (isGlass) {
+              _doorMaterial = DoorMaterial.glass;
+            }
+          });
+        }
+      },
     );
   }
 }

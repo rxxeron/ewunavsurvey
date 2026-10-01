@@ -6,9 +6,13 @@ class WorkbenchDock extends StatefulWidget {
   final SlamSurveyorEngine engine;
   final DbService dbService;
   final VoidCallback onToggleRecording;
+  final VoidCallback? onPauseAndSave;
   final VoidCallback onCompleteFloor;
   final void Function(String doorSide) onOpenRoomModal;
   final void Function(String portalType) onOpenPortalModal;
+  final VoidCallback? onOpenWashroom;
+  final VoidCallback? onManageRooms;
+  final VoidCallback? onOpen3D;
   final VoidCallback onDeadEnd;
   final VoidCallback onAddComment;
   final VoidCallback onStepModified;
@@ -20,9 +24,13 @@ class WorkbenchDock extends StatefulWidget {
     required this.engine,
     required this.dbService,
     required this.onToggleRecording,
+    this.onPauseAndSave,
     required this.onCompleteFloor,
     required this.onOpenRoomModal,
     required this.onOpenPortalModal,
+    this.onOpenWashroom,
+    this.onManageRooms,
+    this.onOpen3D,
     required this.onDeadEnd,
     required this.onAddComment,
     required this.onStepModified,
@@ -68,6 +76,100 @@ class _WorkbenchDockState extends State<WorkbenchDock> {
       child: ListView(
         padding: const EdgeInsets.all(14),
         children: [
+          // 3D View and Room List Header Row
+          Row(
+            children: [
+              if (widget.onOpen3D != null) ...[
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1E2840),
+                      side: const BorderSide(color: Color(0xFF64B5F6)),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                    icon: const Icon(Icons.view_in_ar, size: 16, color: Color(0xFF64B5F6)),
+                    label: const Text('🏢 3D Building', style: TextStyle(color: Color(0xFF64B5F6), fontWeight: FontWeight.bold, fontSize: 11)),
+                    onPressed: widget.onOpen3D,
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              if (widget.onManageRooms != null) ...[
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1E2235),
+                      side: const BorderSide(color: Color(0xFFFFD54F)),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                    icon: const Icon(Icons.list_alt, size: 16, color: Color(0xFFFFD54F)),
+                    label: const Text('📋 Manage Rooms', style: TextStyle(color: Color(0xFFFFD54F), fontWeight: FontWeight.bold, fontSize: 11)),
+                    onPressed: widget.onManageRooms,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Card 0: Active Survey Session Lifecycle & Database Save
+          _buildWorkbenchCard(
+            '⏱️ Active Survey Session',
+            Column(
+              children: [
+                if (engine.isRecording) ...[
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1B402B),
+                      side: const BorderSide(color: Color(0xFF81C784)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    icon: const Icon(Icons.pause_circle_filled, color: Color(0xFFFFB74D), size: 18),
+                    label: const Text('⏸️ Pause & 💾 Save Session', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                    onPressed: () {
+                      if (widget.onPauseAndSave != null) {
+                        widget.onPauseAndSave!();
+                      } else {
+                        widget.onToggleRecording();
+                      }
+                    },
+                  ),
+                ] else ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF163824),
+                            side: const BorderSide(color: Color(0xFF81C784)),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                          ),
+                          icon: const Icon(Icons.play_circle_fill, color: Color(0xFF81C784), size: 16),
+                          label: const Text('▶️ Resume Walk', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11)),
+                          onPressed: widget.onToggleRecording,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFFFFB74D),
+                            side: const BorderSide(color: Color(0xFFFFB74D)),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                          ),
+                          icon: const Icon(Icons.save, size: 16),
+                          label: const Text('💾 Save Snapshot', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                          onPressed: widget.onPauseAndSave,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
           // Card 1: Walking Controls & Undo
           _buildWorkbenchCard(
             '👣 Physical Movement',
@@ -286,6 +388,20 @@ class _WorkbenchDockState extends State<WorkbenchDock> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
+                    if (widget.onOpenWashroom != null) ...[
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFFE57373),
+                            side: const BorderSide(color: Color(0xFFE57373)),
+                          ),
+                          icon: const Icon(Icons.wc, size: 16),
+                          label: const Text('🚻 Washroom', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          onPressed: widget.onOpenWashroom,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
                     Expanded(
                       child: OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(

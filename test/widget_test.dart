@@ -6,6 +6,7 @@ import 'package:ewunavsurvey/services/compass_fusion_service.dart';
 import 'package:ewunavsurvey/services/wifi_scanner_service.dart';
 import 'package:ewunavsurvey/services/slam_surveyor_engine.dart';
 import 'package:ewunavsurvey/services/db_service.dart';
+import 'package:ewunavsurvey/repositories/survey_repository.dart';
 
 void main() {
   testWidgets('EWUNavApp boots into blank first boot waiting for user to add building', (WidgetTester tester) async {
@@ -15,12 +16,14 @@ void main() {
       wifiScanner: WiFiScannerService(),
     );
     final dbService = DbService();
+    final repository = SurveyRepository(dbService: dbService, engine: slamEngine);
 
     await tester.pumpWidget(
       MultiProvider(
         providers: [
           ChangeNotifierProvider<SlamSurveyorEngine>.value(value: slamEngine),
           Provider<DbService>.value(value: dbService),
+          Provider<SurveyRepository>.value(value: repository),
         ],
         child: const EWUNavApp(),
       ),
@@ -29,6 +32,8 @@ void main() {
 
     expect(find.text('No Building Survey Active'), findsOneWidget);
     expect(find.text('+ Create New Building Survey'), findsOneWidget);
+
+    repository.dispose();
   });
 
   testWidgets('Creating building and adding floors dynamically updates surveyor interface', (WidgetTester tester) async {
@@ -38,6 +43,7 @@ void main() {
       wifiScanner: WiFiScannerService(),
     );
     final dbService = DbService();
+    final repository = SurveyRepository(dbService: dbService, engine: slamEngine);
 
     // User creates first building with starting floor
     slamEngine.createBuilding(
@@ -50,6 +56,7 @@ void main() {
         providers: [
           ChangeNotifierProvider<SlamSurveyorEngine>.value(value: slamEngine),
           Provider<DbService>.value(value: dbService),
+          Provider<SurveyRepository>.value(value: repository),
         ],
         child: const EWUNavApp(),
       ),
@@ -65,5 +72,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('1st Floor'), findsWidgets);
+
+    repository.dispose();
   });
 }

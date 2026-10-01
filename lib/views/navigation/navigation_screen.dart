@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/room_node.dart';
 import '../../services/slam_surveyor_engine.dart';
 import '../../services/routing_engine.dart';
+import '../surveyor/building_3d_viewer.dart';
 
 class NavigationScreen extends StatefulWidget {
   final SlamSurveyorEngine engine;
@@ -47,6 +48,19 @@ class _NavigationScreenState extends State<NavigationScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF141624),
         title: const Text('🧭 EWUNav - Campus Navigator', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.view_in_ar, color: Color(0xFFBA68C8)),
+            tooltip: '3D Building View',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => Building3DViewer(engine: widget.engine),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [

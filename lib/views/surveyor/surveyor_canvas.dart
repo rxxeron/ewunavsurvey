@@ -24,6 +24,7 @@ class _SurveyorCanvasState extends State<SurveyorCanvas> {
   Offset _pan = Offset.zero;
   bool _showAccessibleOnly = false;
   bool _showHeatmap = false;
+  bool _headingUpMode = true; // Auto-rotates canvas according to walking movement!
 
   void _zoomIn() => setState(() => _zoom = (_zoom * 1.25).clamp(0.3, 3.5));
   void _zoomOut() => setState(() => _zoom = (_zoom / 1.25).clamp(0.3, 3.5));
@@ -36,8 +37,20 @@ class _SurveyorCanvasState extends State<SurveyorCanvas> {
     if (!widget.engine.hasActiveBuilding) return;
 
     // Inverse transform from viewport to world coordinates
-    final double wx = (details.localPosition.dx - size.width / 2 - _pan.dx) / _zoom + widget.engine.currentX;
-    final double wy = (details.localPosition.dy - size.height / 2 - _pan.dy) / _zoom + widget.engine.currentY;
+    final double dx = (details.localPosition.dx - size.width / 2 - _pan.dx) / _zoom;
+    final double dy = (details.localPosition.dy - size.height / 2 - _pan.dy) / _zoom;
+
+    double wx, wy;
+    if (_headingUpMode) {
+      final double headingRad = widget.engine.currentHeadingDeg * math.pi / 180.0;
+      final double rotX = dx * math.cos(headingRad) - dy * math.sin(headingRad);
+      final double rotY = dx * math.sin(headingRad) + dy * math.cos(headingRad);
+      wx = rotX + widget.engine.currentX;
+      wy = rotY + widget.engine.currentY;
+    } else {
+      wx = dx + widget.engine.currentX;
+      wy = dy + widget.engine.currentY;
+    }
 
     // Find any room node on current floor within tap radius
     final roomsOnFloor = widget.engine.rooms.where((r) => r.floor == widget.engine.currentFloor).toList();
@@ -164,6 +177,7 @@ class _SurveyorCanvasState extends State<SurveyorCanvas> {
                       pan: _pan,
                       showAccessibleOnly: _showAccessibleOnly,
                       showHeatmap: _showHeatmap,
+                      headingUpMode: _headingUpMode,
                     ),
                   );
                 },
@@ -177,6 +191,21 @@ class _SurveyorCanvasState extends State<SurveyorCanvas> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Heading-Up / Course-Up Rotation Mode Toggle
+                  FloatingActionButton.small(
+                    heroTag: 'canvas_heading_toggle',
+                    backgroundColor: _headingUpMode ? const Color(0xFF81C784) : const Color(0xFF1E2235),
+                    foregroundColor: _headingUpMode ? Colors.black : const Color(0xFF81C784),
+                    tooltip: _headingUpMode
+                        ? 'Course-Up: Canvas rotates with your turns (Tap for North-Up)'
+                        : 'North-Up: Canvas fixed to North (Tap for Course-Up)',
+                    onPressed: () => setState(() => _headingUpMode = !_headingUpMode),
+                    child: Transform.rotate(
+                      angle: _headingUpMode ? 0 : (-widget.engine.currentHeadingDeg * math.pi / 180.0),
+                      child: const Icon(Icons.navigation, size: 18),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   FloatingActionButton.small(
                     heroTag: 'canvas_accessible_toggle',
                     backgroundColor: _showAccessibleOnly ? const Color(0xFF64B5F6) : const Color(0xFF1E2235),
@@ -237,6 +266,7 @@ class _SurveyorPainter extends CustomPainter {
   final Offset pan;
   final bool showAccessibleOnly;
   final bool showHeatmap;
+  final bool headingUpMode;
 
   _SurveyorPainter({
     required this.engine,
@@ -244,6 +274,7 @@ class _SurveyorPainter extends CustomPainter {
     required this.pan,
     this.showAccessibleOnly = false,
     this.showHeatmap = false,
+    this.headingUpMode = true,
   });
 
   @override
@@ -264,6 +295,9 @@ class _SurveyorPainter extends CustomPainter {
     canvas.save();
     // 1. Center camera on current surveyor position + user pan & zoom
     canvas.translate(size.width / 2 + pan.dx, size.height / 2 + pan.dy);
+    if (headingUpMode) {
+      canvas.rotate(-engine.currentHeadingDeg * math.pi / 180.0);
+    }
     canvas.scale(zoom);
     canvas.translate(-engine.currentX, -engine.currentY);
 

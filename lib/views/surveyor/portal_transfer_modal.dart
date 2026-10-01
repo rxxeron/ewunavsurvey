@@ -6,8 +6,8 @@ class PortalTransferModal extends StatefulWidget {
   final double currentX;
   final double currentY;
   final double currentElevation;
-  final Function(String name, String type) onTagOnly;
-  final Function(String name, String type, String targetFloor) onTransfer;
+  final Function(String name, String type, int liftCount) onTagOnly;
+  final Function(String name, String type, String targetFloor, int liftCount) onTransfer;
 
   const PortalTransferModal({
     super.key,
@@ -28,6 +28,7 @@ class _PortalTransferModalState extends State<PortalTransferModal> {
   final _nameController = TextEditingController(text: 'Staircase A');
   final _customFloorController = TextEditingController();
   String _portalType = 'stair';
+  int _liftCount = 1;
   bool _createNewFloor = false;
   late String _targetFloor;
 
@@ -121,9 +122,56 @@ class _PortalTransferModalState extends State<PortalTransferModal> {
                   DropdownMenuItem(value: 'lift', child: Text('Elevator / Lift 🛗')),
                 ],
                 onChanged: (val) {
-                  if (val != null) setState(() => _portalType = val);
+                  if (val != null) {
+                    setState(() {
+                      _portalType = val;
+                      if (val == 'lift' && _nameController.text.startsWith('Staircase')) {
+                        _nameController.text = 'Elevator Lobby';
+                      }
+                    });
+                  }
                 },
               ),
+              if (_portalType == 'lift') ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF231C30),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFBA68C8).withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('🛗 Number of Lifts', style: TextStyle(color: Color(0xFFBA68C8), fontWeight: FontWeight.bold, fontSize: 13)),
+                          Text('How many lifts in this bank?', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.remove, size: 16, color: Colors.white),
+                            onPressed: () {
+                              if (_liftCount > 1) setState(() => _liftCount--);
+                            },
+                          ),
+                          Text('$_liftCount', style: const TextStyle(color: Color(0xFFBA68C8), fontWeight: FontWeight.bold, fontSize: 15)),
+                          IconButton(
+                            icon: const Icon(Icons.add, size: 16, color: Colors.white),
+                            onPressed: () {
+                              setState(() => _liftCount++);
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 14),
               const Divider(color: Colors.white24),
               const SizedBox(height: 6),
@@ -197,6 +245,7 @@ class _PortalTransferModalState extends State<PortalTransferModal> {
                         widget.onTagOnly(
                           _nameController.text.trim(),
                           _portalType,
+                          _liftCount,
                         );
                         Navigator.pop(context);
                       },
@@ -220,6 +269,7 @@ class _PortalTransferModalState extends State<PortalTransferModal> {
                           _nameController.text.trim(),
                           _portalType,
                           destination,
+                          _liftCount,
                         );
                         Navigator.pop(context);
                       },

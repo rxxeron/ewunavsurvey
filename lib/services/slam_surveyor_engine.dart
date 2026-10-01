@@ -79,17 +79,22 @@ class SlamSurveyorEngine extends ChangeNotifier {
 
   void pauseRecording() {
     _isRecording = false;
+    pdrEngine.pause();
     notifyListeners();
   }
 
   void resumeRecording() {
     _isRecording = true;
+    pdrEngine.resume();
     notifyListeners();
   }
 
   void toggleRecording() {
-    _isRecording = !_isRecording;
-    notifyListeners();
+    if (_isRecording) {
+      pauseRecording();
+    } else {
+      resumeRecording();
+    }
   }
 
   bool get hasActiveBuilding =>
@@ -488,7 +493,11 @@ class SlamSurveyorEngine extends ChangeNotifier {
     String? roomNumber,
     RoomCategory category = RoomCategory.classroom,
     String department = 'General',
+    String? customCategoryName,
+    int facultyCount = 0,
     String doorSide = 'left',
+    String doorType = 'push',
+    String doorMaterial = 'wood',
     int capacity = 40,
     List<dynamic>? faculty,
   }) {
@@ -529,9 +538,13 @@ class SlamSurveyorEngine extends ChangeNotifier {
       floor: survey.currentFloor,
       category: category,
       department: department,
+      customCategoryName: customCategoryName,
+      facultyCount: facultyCount,
       x: doorX,
       y: doorY,
       doorSide: doorSide,
+      doorType: doorType,
+      doorMaterial: doorMaterial,
       studentCapacity: capacity,
       latitude: geo.latitude,
       longitude: geo.longitude,
@@ -549,6 +562,21 @@ class SlamSurveyorEngine extends ChangeNotifier {
       type: 'door',
     ));
 
+    final opType = doorType.contains('slide')
+        ? (doorMaterial == 'glass' || doorType.contains('glass') ? DoorType.slideGlass : DoorType.sliding)
+        : (doorMaterial == 'glass' || doorType.contains('glass') ? DoorType.pushGlass : DoorType.hinged);
+
+    final opening = Opening(
+      id: 'op_${room.id}',
+      levelId: survey.currentFloor,
+      unitIdA: hallNodeId,
+      unitIdB: roomId,
+      doorType: opType,
+      doorMaterial: (doorMaterial == 'glass' || doorType.contains('glass')) ? DoorMaterial.glass : DoorMaterial.wood,
+      isAccessible: room.isAccessible,
+    );
+    survey.openings.add(opening);
+
     notifyListeners();
     return room;
   }
@@ -557,6 +585,7 @@ class SlamSurveyorEngine extends ChangeNotifier {
   RoomNode tagVerticalPortalLandmark({
     required String name,
     required String portalType,
+    int liftCount = 1,
   }) {
     if (!hasActiveBuilding) {
       throw StateError('Cannot tag portal without an active building survey');
@@ -581,6 +610,7 @@ class SlamSurveyorEngine extends ChangeNotifier {
       roomNumber: name,
       floor: survey.currentFloor,
       category: portalType == 'stair' ? RoomCategory.staircase : RoomCategory.elevator,
+      liftCount: liftCount,
       x: survey.currentX,
       y: survey.currentY,
       latitude: geo.latitude,
@@ -820,6 +850,45 @@ class SlamSurveyorEngine extends ChangeNotifier {
     final survey = activeSurvey!;
     survey.stepLogs.removeWhere((s) => s.stepIndex == stepIndex);
     notifyListeners();
+  }
+
+  /// Clear only the walked corridor track points and steps for a specific floor
+  void clearFloorPaths(String floorName) {
+    if (!hasActiveBuilding) return;
+    final survey = activeSurvey!;
+    survey.floorTrackPoints[floorName] = [];
+    survey.stepLogs.removeWhere((s) => s.floor == floorName);
+
+    // Remove corridor edges on this floor (leave doors intact)
+    final floorPrefix = 'node_${floorName}_';
+    survey.edges.removeWhere((e) =>
+        e.fromId.startsWith(floorPrefix) || e.toId.startsWith(floorPrefix));
+
+    // If current floor was cleared, reset position to origin
+    if (survey.currentFloor == floorName) {
+      survey.currentX = survey.originX;
+      survey.currentY = survey.originY;
+      survey.currentHeadingDeg = 0.0;
+      _initStartStepFor(survey);
+      _addTrackPointFor(survey);
+    }
+    notifyListeners();
+  }
+
+  /// Delete all rooms and tagged landmarks on a specific floor only
+  void clearFloorRooms(String floorName) {
+    if (!hasActiveBuilding) return;
+    final survey = activeSurvey!;
+    final removedRoomIds = survey.rooms.where((r) => r.floor == floorName).map((r) => r.id).toSet();
+    survey.rooms.removeWhere((r) => r.floor == floorName);
+    survey.edges.removeWhere((e) => removedRoomIds.contains(e.fromId) || removedRoomIds.contains(e.toId));
+    notifyListeners();
+  }
+
+  /// Reset all data (both paths and rooms) on a specific floor only
+  void resetFloor(String floorName) {
+    clearFloorRooms(floorName);
+    clearFloorPaths(floorName);
   }
 
   /// Reset survey state for the active building

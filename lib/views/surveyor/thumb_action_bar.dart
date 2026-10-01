@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 class ThumbActionBar extends StatelessWidget {
   final bool isRecording;
   final VoidCallback onToggleRecording;
+  final VoidCallback? onPauseAndSave;
   final VoidCallback onCompleteFloor;
   final VoidCallback onMarkDeadEnd;
   final VoidCallback? onEncloseZone;
@@ -15,6 +16,9 @@ class ThumbActionBar extends StatelessWidget {
   final VoidCallback onManualStep;
   final VoidCallback onMarkStair;
   final VoidCallback onMarkLift;
+  final VoidCallback? onMarkWashroom;
+  final VoidCallback? onManageRooms;
+  final VoidCallback? onOpen3D;
   final VoidCallback onAddComment;
   final VoidCallback onUTurn;
   final VoidCallback onUndo;
@@ -23,6 +27,7 @@ class ThumbActionBar extends StatelessWidget {
     super.key,
     required this.isRecording,
     required this.onToggleRecording,
+    this.onPauseAndSave,
     required this.onCompleteFloor,
     required this.onMarkDeadEnd,
     this.onEncloseZone,
@@ -34,6 +39,9 @@ class ThumbActionBar extends StatelessWidget {
     required this.onManualStep,
     required this.onMarkStair,
     required this.onMarkLift,
+    this.onMarkWashroom,
+    this.onManageRooms,
+    this.onOpen3D,
     required this.onAddComment,
     required this.onUTurn,
     required this.onUndo,
@@ -50,48 +58,162 @@ class ThumbActionBar extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Row 0: Survey Lifecycle Status Bar (Recording / Paused & Complete)
+          // Row 0: Survey Lifecycle Status Bar (Recording / Pause & Save / Resume)
           Row(
             children: [
-              Expanded(
-                child: InkWell(
+              if (isRecording) ...[
+                Expanded(
+                  child: InkWell(
+                    onTap: () {
+                      HapticFeedback.heavyImpact();
+                      if (onPauseAndSave != null) {
+                        onPauseAndSave!();
+                      } else {
+                        onToggleRecording();
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF163824), Color(0xFF382A12)],
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFF81C784)),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.pause_circle_filled, size: 16, color: Color(0xFFFFB74D)),
+                          SizedBox(width: 6),
+                          Text(
+                            '⏸️ PAUSE & 💾 SAVE SESSION',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF81C784),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ] else ...[
+                Expanded(
+                  flex: 3,
+                  child: InkWell(
+                    onTap: () {
+                      HapticFeedback.mediumImpact();
+                      onToggleRecording();
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1B402B),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFF81C784)),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.play_circle_fill, size: 16, color: Color(0xFF81C784)),
+                          SizedBox(width: 6),
+                          Text(
+                            '▶️ RESUME',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  flex: 2,
+                  child: InkWell(
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      onPauseAndSave?.call();
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF33200D),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFFFB74D)),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.save, size: 14, color: Color(0xFFFFB74D)),
+                          SizedBox(width: 4),
+                          Text(
+                            '💾 SAVE',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFFFB74D)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(width: 8),
+              if (onOpen3D != null) ...[
+                InkWell(
                   onTap: () {
-                    HapticFeedback.mediumImpact();
-                    onToggleRecording();
+                    HapticFeedback.selectionClick();
+                    onOpen3D!();
                   },
                   borderRadius: BorderRadius.circular(8),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
                     decoration: BoxDecoration(
-                      color: isRecording ? const Color(0xFF143020) : const Color(0xFF33200D),
+                      color: const Color(0xFF1E2840),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: isRecording ? const Color(0xFF81C784) : const Color(0xFFFFB74D),
-                      ),
+                      border: Border.all(color: const Color(0xFF64B5F6)),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          isRecording ? Icons.fiber_manual_record : Icons.pause_circle_outline,
-                          size: 14,
-                          color: isRecording ? const Color(0xFF81C784) : const Color(0xFFFFB74D),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          isRecording ? '🟢 RECORDING (Tap to Pause)' : '🟠 PAUSED (Tap to Resume)',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: isRecording ? const Color(0xFF81C784) : const Color(0xFFFFB74D),
-                          ),
-                        ),
+                        Icon(Icons.view_in_ar, size: 14, color: Color(0xFF64B5F6)),
+                        SizedBox(width: 4),
+                        Text('3D View', style: TextStyle(fontSize: 11, color: Color(0xFF64B5F6), fontWeight: FontWeight.bold)),
                       ],
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
+                const SizedBox(width: 6),
+              ],
+              if (onManageRooms != null) ...[
+                InkWell(
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    onManageRooms!();
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E2235),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFFFD54F)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.list_alt, size: 14, color: Color(0xFFFFD54F)),
+                        SizedBox(width: 4),
+                        Text('Rooms', style: TextStyle(fontSize: 11, color: Color(0xFFFFD54F), fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
               InkWell(
                 onTap: () {
                   HapticFeedback.selectionClick();
@@ -246,6 +368,21 @@ class ThumbActionBar extends StatelessWidget {
                   },
                 ),
               ),
+              if (onMarkWashroom != null)
+                Expanded(
+                  child: TextButton.icon(
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFFE57373),
+                      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+                    ),
+                    icon: const Icon(Icons.wc, size: 14),
+                    label: const Text('Washroom', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      onMarkWashroom!();
+                    },
+                  ),
+                ),
               Expanded(
                 child: TextButton.icon(
                   style: TextButton.styleFrom(

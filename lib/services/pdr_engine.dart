@@ -45,6 +45,19 @@ class PdrEngine {
   bool _isHardwareActive = false;
   bool get isHardwareActive => _isHardwareActive;
 
+  bool _isPaused = false;
+  bool get isPaused => _isPaused;
+
+  void pause() {
+    _isPaused = true;
+    _accelSub?.pause();
+  }
+
+  void resume() {
+    _isPaused = false;
+    _accelSub?.resume();
+  }
+
   PdrEngine({bool enableHardwareSensors = false, double initialK = 0.42}) {
     _weinbergK = initialK;
     if (enableHardwareSensors && !kIsWeb) {
@@ -57,6 +70,7 @@ class PdrEngine {
     _accelSub?.cancel();
     _isHardwareActive = true;
     _accelSub = accelerometerEventStream().listen((event) {
+      if (_isPaused) return;
       processAccelerometerSample(
         event.x,
         event.y,
@@ -79,6 +93,7 @@ class PdrEngine {
   double get totalDistanceMeters => _totalDistanceMeters;
 
   void processAccelerometerSample(double ax, double ay, double az, int timestampMs) {
+    if (_isPaused) return;
     // Total acceleration magnitude minus standard Earth gravity (9.81 m/s^2)
     final double rawMagnitude = math.sqrt(ax * ax + ay * ay + az * az) - 9.80665;
 

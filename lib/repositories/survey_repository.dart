@@ -167,6 +167,34 @@ class SurveyRepository {
     }
   }
 
+  /// Persists active survey data to SQLite database and crash recovery backup file
+  Future<void> backupActiveSurveyToDb() async {
+    if (!engine.hasActiveBuilding) return;
+    await saveCrashRecoveryBackup();
+
+    final survey = engine.activeSurvey;
+    if (survey == null) return;
+
+    for (final room in survey.rooms) {
+      await saveRoom(room);
+    }
+    for (final edge in survey.edges) {
+      await saveEdge(edge);
+    }
+    for (final step in survey.stepLogs) {
+      await saveStepLog(step);
+    }
+    for (final zone in survey.zones) {
+      await saveZone(zone);
+    }
+    for (final opening in survey.openings) {
+      await saveOpening(opening);
+    }
+    for (final fp in survey.fingerprints) {
+      await saveFingerprint(fp);
+    }
+  }
+
   /// Check if a crash recovery backup exists for this building
   Future<bool> hasCrashRecoveryBackup(String buildingName) async {
     try {
